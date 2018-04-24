@@ -9,6 +9,7 @@
   vars:
     # don't include a trailing slash!
     install_url: https://ftp.bit.nl/pub/OpenBSD
+    dns_name: "node4.wurstbot.com"
 
   tasks:
   - name: set install url
@@ -19,30 +20,50 @@
       state=present
       create=True
 
+  - name: cron - system patches
+    cron:
+      name: "install system patches"
+      special_time: weekly
+      job: "syspatch"
+
+  - name: cron - package updates
+    cron:
+      name: "install package updates"
+      special_time: daily
+      job: "pkg_add -u"
+
+  - name: cron - refresh certs with acme-client
+    cron:
+      name: "refresh certs with acme-client"
+      special_time: daily
+      job: "acme-client {{ dns_name }} && rcctl reload httpd"
+
+  - name: cron - refresh ocsp with ocspcheck
+    cron:
+      name: "refresh ocsp with ocspcheck"
+      special_time: daily
+      job: "ocspcheck -vN -o /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem"
+
   #######################################
-  # UPDATE SYSTEM
+  # UPDATE SYSTEM AND PACKAGES
   #######################################
 - name: install system updates
   hosts: node4
   user: root
 
+  vars:
+      update_mode: false
+
   tasks:
     - name: install system updates
       shell: syspatch
       register: system_update_results
+      when: update_mode==True
 
-  #######################################
-  # UPDATE PACKAGES
-  #######################################
-- name: install package updates
-  hosts: node4
-  user: root
-
-  tasks:
     - name: install package updates
       shell: pkg_add -u
       register: package_update_results
-
+      when: update_mode==True
 
   #######################################
   # SYSCTL
@@ -322,9 +343,19 @@
   hosts: node4
 
   vars:
-    mysql_root_pass: "supersecret"
     mysql_version: "10.0.34v1"
+
+    # replication related
+    mysql_root_pass: "1tsAdm1n"
+    mysql_repl_pass: "1tsAdm1n"
+    mysql_is_master: true
+    mysql_is_slave: false
+    mysql_master_host: ""
+    mysql_repl_dbs:
+      - zabbix
+
     php_version: "5.6.34"
+    py_mysql_version: "1.2.5p4"
 
   tasks:
   - name: mysql - install
@@ -335,7 +366,7 @@
       - php-mysql
       - php-mysqli-{{ php_version }}
       # on bsd
-      - py-mysql-1.2.5p4
+      - py-mysql-{{ py_mysql_version }}
       # - python-mysqldb on linux
 
   # - name: mysql - install_db
@@ -350,17 +381,58 @@
     blockinfile:
       dest: /etc/my.cnf
       block: |
+        listen on 0.0.0.0
+
         [client]
         user=root
         password={{ mysql_root_pass }}
       backup: yes
       create: true
+    register: mysql_client_config_results
 
   - name: mysql - update root password
     mysql_user: check_implicit_admin=yes user=root host={{ item }} password={{ mysql_root_pass }} login_user=root login_password={{ mysql_root_pass }} state=present
     with_items:
       - localhost
       - "{{ ansible_hostname }}"
+
+  - name: mysql - remove anonymous user(s) not in the database
+    mysql_user: name='' host={{ item }} login_user=root login_password={{ mysql_root_pass }} state=absent
+    with_items:
+      - localhost
+      - "{{ ansible_hostname }}"
+
+  - name: mysql - remove the test database
+    mysql_db: name=test login_user=root login_password={{ mysql_root_pass }} state=absent
+
+    #to be fixed:
+    # replication only granted for localhost
+    # | 'zabbix_slave'@'localhost'  | def           | REPLICATION SLAVE       | NO           |
+
+    # show call grants: select * from information_schema.user_privileges;
+
+    #replication user name is "database_slave"
+  - name: mysql - grant replication privileges to {{ item }}_slave for replicated dbs
+    mysql_user: user={{ item }}_slave password={{ mysql_repl_pass }} priv="*.*:REPLICATION SLAVE" login_user=root login_password={{ mysql_root_pass }} state=present
+    with_items: mysql_repl_dbs
+    when: mysql_is_master
+    register: mysql_grant_replication_result
+
+  - name: mysql - master - update my.cnf to do bin-logging with to be replicated dbs
+    lineinfile:
+      dest: /etc/my.cnf
+      line: "binlog_do_db  = {{ item }}"
+      insertafter: "^log-bin="
+      backup: yes
+      create: true
+    with_items: mysql_repl_dbs
+    when: mysql_is_master and mysql_grant_replication_result is succeeded
+    register: mysql_repl_config_results
+
+    # mysql slave: needs to be set to inital log postion manually of with ansible mysql_replication module
+    # create database databasename;
+    # start slave;
+    # show slave status\G
 
   # - name: mysql - check config
   #   command: mysqld --help --verbose
@@ -373,12 +445,4 @@
 
   - name: mysql - restart mysqld
     service: name=mysqld state=restarted
-
-  - name: mysql - remove anonymous user(s) are not in the database
-    mysql_user: name='' host={{ item }} login_user=root login_password={{ mysql_root_pass }} state=absent
-    with_items:
-      - localhost
-      - "{{ ansible_hostname }}"
-
-  - name: mysql - remove the test database
-    mysql_db: name=test login_user=root login_password={{ mysql_root_pass }} state=absent
+    when: ( mysql_client_config_results|changed ) or ( mysql_repl_config_results|changed )

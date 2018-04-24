@@ -4,7 +4,9 @@
   #######################################
 - name: basic system setup
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
     # don't include a trailing slash!
@@ -49,7 +51,9 @@
   #######################################
 - name: install system updates
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
       update_mode: false
@@ -70,7 +74,9 @@
   #######################################
 - name: configure sysctl
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   tasks:
     - name: sysctl - configure kernel options
@@ -86,7 +92,9 @@
   #######################################
 - name: configure doas
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   tasks:
   - name: doas - configure options
@@ -103,6 +111,9 @@
   #######################################
 - name: configure pf
   hosts: node4
+  user: admin
+  become: true
+  become_method: doas
 
   tasks:
   - name: pf - configure packet filter
@@ -149,7 +160,9 @@
   #######################################
 - name: configure ssh
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
     ssh_port: 3200
@@ -166,7 +179,7 @@
       dest: /etc/ssh/sshd_config
       block: |
         Port {{ ssh_port }}
-        PermitRootLogin false
+        PermitRootLogin no
         PasswordAuthentication yes
       backup: yes
       validate: "/usr/sbin/sshd -T -f %s"
@@ -179,7 +192,9 @@
   #######################################
 - name: configure php-fpm
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
     # 5.6.34 or 7.0.28
@@ -241,7 +256,9 @@
   #######################################
 - name: configure slowcgi
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   tasks:
   - name: slowcgi - started
@@ -252,7 +269,9 @@
   #######################################
 - name: configure httpd
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
     httpd_vhost: "wurstbot.com"
@@ -301,7 +320,9 @@
   #######################################
 - name: configure acme
   hosts: node4
-  user: root
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
     dns_name: "node4.wurstbot.com"
@@ -341,6 +362,9 @@
   #######################################
 - name: configure mysql
   hosts: node4
+  user: admin
+  become: true
+  become_method: doas
 
   vars:
     mysql_version: "10.0.34v1"

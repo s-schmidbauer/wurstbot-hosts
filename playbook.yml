@@ -1,5 +1,30 @@
 ---
   #######################################
+  # UPDATE SYSTEM
+  #######################################
+- name: install system updates
+  hosts: node4
+  user: root
+
+  tasks:
+    - name: install system updates
+      shell: syspatch
+      register: system_update_results
+
+  #######################################
+  # UPDATE PACKAGES
+  #######################################
+- name: install package updates
+  hosts: node4
+  user: root
+
+  tasks:
+    - name: install package updates
+      shell: pkg_add -u
+      register: package_update_results
+
+
+  #######################################
   # SYSCTL
   #######################################
 - name: configure sysctl
@@ -37,7 +62,6 @@
   #######################################
 - name: configure pf
   hosts: node4
-  user: root
 
   tasks:
   - name: pf - configure packet filter
@@ -66,7 +90,7 @@
           block all
           pass out quick inet
           pass in on egress inet proto icmp from any to (egress)
-          pass in on egress inet proto tcp from any to (egress) port { http, https, 3128, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+          pass in on egress inet proto tcp from any to (egress) port { ssh, http, https, 3128, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
 
@@ -94,7 +118,7 @@
     authorized_key:
       user: admin
       state: present
-      key: "{{ lookup('file', '/home/ss/.ssh/id_ecdsa.pub') }}"
+      key: "{{ lookup('file', '~/.ssh/id_ecdsa.pub') }}"
 
   - name: ssh - configure sshd
     blockinfile:
@@ -276,7 +300,6 @@
   #######################################
 - name: configure mysql
   hosts: node4
-  user: root
 
   vars:
     mysql_root_pass: "supersecret"
@@ -303,14 +326,6 @@
   - name: mysql - started
     service: name=mysqld state=started
 
-  - name: mysql - update root password
-    mysql_user: name=root host={{ item }} password={{ mysql_root_pass }} state=present
-    with_items:
-      - "{{ ansible_hostname }}"
-      - 127.0.0.1
-      - ::1
-      - localhost
-
   - name: mysql - configure .my.cnf
     blockinfile:
       dest: /etc/my.cnf
@@ -320,6 +335,12 @@
         password={{ mysql_root_pass }}
       backup: yes
       create: true
+
+  - name: mysql - update root password
+    mysql_user: check_implicit_admin=yes user=root host={{ item }} password={{ mysql_root_pass }} login_user=root login_password={{ mysql_root_pass }} state=present
+    with_items:
+      - localhost
+      - "{{ ansible_hostname }}"
 
   # - name: mysql - check config
   #   command: mysqld --help --verbose
@@ -334,10 +355,10 @@
     service: name=mysqld state=restarted
 
   - name: mysql - remove anonymous user(s) are not in the database
-    mysql_user: name='' host={{ item }} state=absent
+    mysql_user: name='' host={{ item }} login_user=root login_password={{ mysql_root_pass }} state=absent
     with_items:
       - localhost
       - "{{ ansible_hostname }}"
 
   - name: mysql - remove the test database
-    mysql_db: name=test state=absent
+    mysql_db: name=test login_user=root login_password={{ mysql_root_pass }} state=absent

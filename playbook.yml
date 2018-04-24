@@ -166,7 +166,7 @@
       dest: /etc/ssh/sshd_config
       block: |
         Port {{ ssh_port }}
-        PermitRootLogin yes
+        PermitRootLogin false
         PasswordAuthentication yes
       backup: yes
       validate: "/usr/sbin/sshd -T -f %s"

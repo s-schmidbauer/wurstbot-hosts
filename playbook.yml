@@ -1,5 +1,25 @@
 ---
   #######################################
+  # BASIS SETUP
+  #######################################
+- name: basic system setup
+  hosts: node4
+  user: root
+
+  vars:
+    # don't include a trailing slash!
+    install_url: https://ftp.bit.nl/pub/OpenBSD
+
+  tasks:
+  - name: set install url
+    lineinfile:
+      dest=/etc/installurl
+      backup=yes
+      line="{{ install_url }}"
+      state=present
+      create=True
+
+  #######################################
   # UPDATE SYSTEM
   #######################################
 - name: install system updates

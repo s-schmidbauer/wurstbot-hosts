@@ -1,0 +1,20 @@
+mkdir openbsd-ansible ; cd openbsd-ansible
+
+# to allow ssh access with password
+sudo apt install -y sshpass
+
+vi inventory:
+[node4]
+node4.wurstbot.com ansible_user=root
+
+inventory after configuring ssh options
+[node4]
+node4.wurstbot.com ansible_user=root ansible_python_interpreter=/usr/local/bin/python2.7 ansible_user=admin ansible_ssh_private_key_file=~/.ssh/id_ecdsa ansible_port=3200
+
+
+# we need a install url first
+ansible node4 -m raw -i inventory -a "echo 'https://ftp.bit.nl/pub/OpenBSD' >> /etc/installurl" --ask-pass
+
+# make a precise choice or the process will get stuck in the version selection
+ansible node4 -m raw -i inventory -a "pkg_add python-2.7.14p1" --ask-pass
+

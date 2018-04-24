@@ -1,0 +1,343 @@
+---
+  #######################################
+  # SYSCTL
+  #######################################
+- name: configure sysctl
+  hosts: node4
+  user: root
+
+  tasks:
+    - name: sysctl - configure kernel options
+      blockinfile:
+        dest: /etc/sysctl.conf
+        block: |
+          kern.shminfo.shmall=524288
+          kern.shminfo.shmmni=240
+        create: true
+
+  #######################################
+  # DOAS
+  #######################################
+- name: configure doas
+  hosts: node4
+  user: root
+
+  tasks:
+  - name: doas - configure options
+    lineinfile:
+      dest: /etc/doas.conf
+      line: permit persist setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
+      backup: yes
+      state: present
+      create: true
+
+
+  #######################################
+  # PF
+  #######################################
+- name: configure pf
+  hosts: node4
+  user: root
+
+  tasks:
+  - name: pf - configure packet filter
+    blockinfile:
+      dest: /etc/pf.conf
+      block: |
+          table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16     \
+                             172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
+                             192.168.0.0/16 198.18.0.0/15 198.51.100.0/24        \
+                             203.0.113.0/24 }
+
+          set skip on lo
+
+          block return    # block stateless traffic
+          pass            # establish keep-state
+
+          # By default, do not permit remote connections to X11
+          block return in on ! lo0 proto tcp to port 6000:6010
+
+          set block-policy drop
+          set loginterface egress
+          set skip on lo0
+          match in all scrub (no-df random-id max-mss 1440)
+          block in quick on egress from <martians> to any
+          block return out quick on egress from any to <martians>
+          block all
+          pass out quick inet
+          pass in on egress inet proto icmp from any to (egress)
+          pass in on egress inet proto tcp from any to (egress) port { http, https, 3128, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+      backup: yes
+      validate: "/sbin/pfctl -n -f %s"
+
+  - name: pf - check conf
+    shell: pfctl -nf /etc/pf.conf
+    register: pf_result
+
+  - name: pf - activate pf
+    shell: pfctl -f /etc/pf.conf
+    when: pf_result is succeeded
+
+
+  #######################################
+  # SSH
+  #######################################
+- name: configure ssh
+  hosts: node4
+  user: root
+
+  vars:
+    ssh_port: 3200
+
+  tasks:
+  - name: ssh - set authorized key
+    authorized_key:
+      user: admin
+      state: present
+      key: "{{ lookup('file', '/home/ss/.ssh/id_ecdsa.pub') }}"
+
+  - name: ssh - configure sshd
+    blockinfile:
+      dest: /etc/ssh/sshd_config
+      block: |
+        Port {{ ssh_port }}
+        PermitRootLogin yes
+        PasswordAuthentication yes
+      backup: yes
+      validate: "/usr/sbin/sshd -T -f %s"
+
+  - name: ssh - reload sshd
+    service: name=sshd state=reloaded
+
+  #######################################
+  # PHP-FPM
+  #######################################
+- name: configure php-fpm
+  hosts: node4
+  user: root
+
+  vars:
+    # 5.6.34 or 7.0.28
+    php_version: "5.6.34"
+    php_port: 6060
+
+  tasks:
+  - name: php-fpm - install php and modules
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+        - php-{{ php_version }}
+        - php-curl-{{ php_version }}
+        - php-mysql-{{ php_version }}
+        - php-zip-{{ php_version }}
+        - php-gd-{{ php_version }}
+        - php-mcrypt-{{ php_version }}
+        - php-bz2-{{ php_version }}
+        - php-intl-{{ php_version }}
+
+  - name: php-fpm - symlink modules
+    file:
+      src: '/etc/php-5.6.sample/{{ item }}.ini'
+      dest: '/etc/php-5.6/{{ item }}.ini'
+      state: link
+    with_items:
+      - curl
+      - mysql
+      - zip
+      - gd
+      - mcrypt
+      - bz2
+      - intl
+    register: phpfpm_results
+
+  - name: php-fpm - configure php-fpm.conf
+    lineinfile:
+      dest: /etc/php-fpm.conf
+      line: listen = 127.0.0.1:{{ php_port }}
+      backup: yes
+      state: present
+    register: phpfpm_results
+
+  - name: php-fpm - configure php.ini
+    blockinfile:
+      dest: /etc/php-5.6.ini
+      block: |
+        extension=mysql.so
+        extension=mysqli.so
+      backup: yes
+      state: present
+    register: phpfpm_results
+
+  - name: php-fpm - restart
+    service: name=php56_fpm state=restarted
+    when: phpfpm_results|changed
+
+  #######################################
+  # SLOWCGI
+  #######################################
+- name: configure slowcgi
+  hosts: node4
+  user: root
+
+  tasks:
+  - name: slowcgi - started
+    service: name=slowcgi state=started
+
+  #######################################
+  # HTTPD
+  #######################################
+- name: configure httpd
+  hosts: node4
+  user: root
+
+  vars:
+    httpd_vhost: "wurstbot.com"
+
+  tasks:
+  - name: httpd - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server "*.{{ httpd_vhost}}" {
+         listen on egress port 80
+         listen on lo port 80
+         root "/{{ httpd_vhost}}"
+
+         location "/.well-known/acme-challenge/*" {
+              root "/acme"
+              root strip 2
+         }
+
+         #tls certificate "/etc/ssl/{{ httpd_vhost}}.crt"
+         #tls key "/etc/ssl/private/{{ httpd_vhost}}.key"
+         #tls ocsp "/etc/ssl/{{ httpd_vhost}}m.der"
+         # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+
+           location "*.php*" {
+              fastcgi socket ":6060"
+           }
+        }
+      create: true
+
+  - name: httpd - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: httpd - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: httpd - reload httpd
+    service: name=httpd state=reloaded
+
+
+  #######################################
+  # ACME
+  #######################################
+- name: configure acme
+  hosts: node4
+  user: root
+
+  vars:
+    dns_name: "node4.wurstbot.com"
+    dns_san_names: ""
+
+  tasks:
+  - name: acme - configure acme
+    blockinfile:
+      dest: /etc/acme-client.conf
+      block: |
+        domain "{{ dns_name }}" {
+          domain key "/etc/ssl/private/{{ dns_name }}.key"
+          domain certificate "/etc/ssl/{{ dns_name }}.crt"
+          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
+          sign with letsencrypt
+        }
+      backup: yes
+      create: true
+
+  # - name: acme - check config
+  #   command: /usr/sbin/acme-client -n
+  #   register: acme_result
+  #   ignore_errors: yes
+  #
+  # - name: acme - handle failure
+  #   action: fail msg="acme-client.conf check failed."
+  #   when: acme_result|failed
+
+    #make sure the cert does not exist yet and a webserver is able to satisify the request
+  - name: acme - configure certs and keys
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    ignore_errors: true
+
+
+  #######################################
+  # MariaDB
+  #######################################
+- name: configure mysql
+  hosts: node4
+  user: root
+
+  vars:
+    mysql_root_pass: "supersecret"
+    mysql_version: "10.0.34v1"
+    php_version: "5.6.34"
+
+  tasks:
+  - name: mysql - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - mariadb-server-{{ mysql_version }}
+      - mariadb-client-{{ mysql_version }}
+      - php-mysql
+      - php-mysqli-{{ php_version }}
+      # on bsd
+      - py-mysql-1.2.5p4
+      # - python-mysqldb on linux
+
+  # - name: mysql - install_db
+  #   shell: mysql_install_db
+  #   run_once: true
+  #   ignore_errors: true
+
+  - name: mysql - started
+    service: name=mysqld state=started
+
+  - name: mysql - update root password
+    mysql_user: name=root host={{ item }} password={{ mysql_root_pass }} state=present
+    with_items:
+      - "{{ ansible_hostname }}"
+      - 127.0.0.1
+      - ::1
+      - localhost
+
+  - name: mysql - configure .my.cnf
+    blockinfile:
+      dest: /etc/my.cnf
+      block: |
+        [client]
+        user=root
+        password={{ mysql_root_pass }}
+      backup: yes
+      create: true
+
+  # - name: mysql - check config
+  #   command: mysqld --help --verbose
+  #   register: mysqld_result
+  #   ignore_errors: yes
+  #
+  # - name: mysql - handle failure
+  #   action: fail msg="my.cnf check failed."
+  #   when: mysql_result|failed
+
+  - name: mysql - restart mysqld
+    service: name=mysqld state=restarted
+
+  - name: mysql - remove anonymous user(s) are not in the database
+    mysql_user: name='' host={{ item }} state=absent
+    with_items:
+      - localhost
+      - "{{ ansible_hostname }}"
+
+  - name: mysql - remove the test database
+    mysql_db: name=test state=absent

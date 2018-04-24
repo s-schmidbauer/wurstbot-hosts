@@ -1,0 +1,11 @@
+  - name: configure sysctl parameters
+    sysctl: name={{ item.name }} value={{ item.value }} state=present sysctl_file=/etc/sysctl.conf
+    with_items: "{{ sysctl_params }}"
+    become_method: doas
+    become: true
+
+  - name: install extra packages
+    openbsd_pkg: name={{ item }} state=present
+    with_items: "{{ extra_packages }}"
+    become_method: doas
+    become: true

@@ -462,8 +462,8 @@
     mysql_version: "10.0.34v1"
 
     # replication related
-    mysql_root_pass: "1tsAdm1n"
-    mysql_repl_pass: "1tsAdm1n"
+    mysql_root_pass: "supersecret"
+    mysql_repl_pass: "supersecret"
     mysql_is_master: true
     mysql_is_slave: false
     mysql_master_host: ""

@@ -1,7 +1,7 @@
 have entries of both hosts in load balancing
 /etc/resolv.conf
 
-nice to haves
+# nice to haves
 - know all relevant config files and what vars they reference (like IPs, netmasks, MACs etc.)
 - have a simple backup of all important config files (cvs and remote)
 - assign qos minimums for all core services like ntpd, dns etc. through hfsc
@@ -14,7 +14,7 @@ nice to haves
 - sms notifications through usb modem
 - sensors from motherboard can be read and used for monitoring
 
-all servers:
+# all servers
 - pkg_add -uv
 - syspatch
 - set installpath to eu address or local repo
@@ -29,15 +29,13 @@ all servers:
 - cvs - http://vasc.ri.cmu.edu/old_help/Archiving/Cvs/cvs_tutorial.texinfo.html
 - install nrpe and nsca-client
 - make local check commands for in nrpe.conf
-
-installation
 - take pf.guide from openbsd official site for router
 - rcctl enable pf
 - pfctl -nf /etc/pf.conf
 - pfctl -f /etc/pf.conf
 
-DOAS - /etc/doas.conf
----------------------------
+# DOAS - /etc/doas.conf
+
 following allows members of wheel to execute all commands while setting an unsetting some env vars
 
 vi /etc/doas.conf
@@ -45,12 +43,12 @@ permit persist setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
 
 logoff and back in. then: doas rcctl reload nsd
 
-BACKUPSCRIPT
+# BACKUPSCRIPT
 ---------------------------
 
 
 
-SYSTEM MAINTENANCE
+# SYSTEM MAINTENANCE
 ----------------------------
 doas crontab -e
 
@@ -87,10 +85,7 @@ fi
 
 
 
-pf - /etc/pf.conf
------------------
------------------
-my ruleset
+# pf - /etc/pf.conf
 
 table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16     \
                    172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
@@ -102,7 +97,7 @@ set skip on lo
 block return    # block stateless traffic
 pass            # establish keep-state
 
-# By default, do not permit remote connections to X11
+## By default, do not permit remote connections to X11
 block return in on ! lo0 proto tcp to port 6000:6010
 
 set block-policy drop
@@ -118,8 +113,8 @@ pass in on egress inet proto tcp from any to (egress) port { http, https, 3128, 
 
 the last line allows the number of services
 
-pfsync
---------------
+## pfsync
+
 sync states of pf between hosts over internal interface (using multicast)
 on both hosts, create a pfsync interface. use internal interface (em1) to sync
 
@@ -129,8 +124,8 @@ inet 172.16.0.1/2 255.255.255.0
 ifconfig pfsync0 172.16.0.1 or 2 255.255.255.0 syncdev em1 up
 
 
-configure carp
---------------
+## configure carp
+
 allow carp and pfsync traffic on carp interface in pf. reload ruleset.
 create carp interface and bind to VIP 172.16.0.10. master will use advskew 100, backup 110 or higher. lower wins.
 vi /etc/pf.conf
@@ -151,12 +146,11 @@ ifconfig carp0 vhid 1 pass foobar carpdev em1 advskew 110 172.16.0.10 netmask 25
 ifconfig carp0
 
 
-
-monitor multicast traffic
+### monitor multicast traffic
 tcpdump -i em1 -vv net 224.0.0.0/4
 
 
-unbound, in /var/unbound/etc/unbound.conf
+# unbound, in /var/unbound/etc/unbound.conf
 -------------------------------------------
 --------------------------------------------
 listen on local interfaces port 53. Stub zone to foward local queries to NSD.
@@ -213,7 +207,7 @@ in the unbound.conf
 auto-trust-anchor-file: "/var/unbound/etc/root.key"
 
 
-NSD - /var/nsd/etc/nsd.conf
+# NSD - /var/nsd/etc/nsd.conf
 --------------------
 --------------------
 binds to the 5353 port of local interfaces
@@ -235,8 +229,8 @@ server:
 remote-control:
         control-enable: yes
 
-#on master, provide to slave
-----------------------------------
+## on master, provide to slave
+
 key:
         name: "wurstbotkey"
         algorithm: hmac-sha256
@@ -259,7 +253,7 @@ zone:
 
 
 
-#on slave, pull from master on port 5353
+## on slave, pull from master on port 5353
 -------------------------------------------
 key:
         name: "wurstbotkey"
@@ -279,32 +273,33 @@ zone:
         zonefile: "wurstbot.com.reverse"
         include-pattern: "frommaster"
 
-#on master
+### on master
 nsd-control notify
 
-#on slave, check logs after running this
+### on slave, check logs after running this
 nsd-control force_update wurstbot.com
 
 
-#restart to activate changes for stub zone!
+### restart to activate changes for stub zone!
 rcctl restart nsd
 dig @127.0.0.1 -p 53 google.com
 dig @127.0.0.1 -p 53 ns.wurstbot.com
 
-#test zonetransfer
+### test zonetransfer
 dig axfr @ns.wurstbot.com
 
-#on dns master and notify slave
-#raise serial in master zone file when making an change, then on master:
+### on dns master and notify slave
+raise serial in master zone file when making an change, then on master:
+
 nsd-control notify wurstbot.com
 
-#on dns slave, start transfer and check for new serial
+### on dns slave, start transfer and check for new serial
 nsd-control transfer
 nsd-control force_transfer wurstbot.com
 nsd-control zonestatus wurstbot.com
 
 
-FORWARD ZONE
+## FORWARD ZONE
 -----------------------------
 -----------------------------
 vi /var/nsd/zones/wurstbot.com.zone
@@ -329,7 +324,7 @@ ns              A       192.168.100.116
 ns2              A       192.168.100.115
 mail              A       192.168.100.116
 
-REVERSE ZONE
+## REVERSE ZONE
 -------------------------------
 -------------------------------
 vi /var/nsd/zones/wurstbot.com.reverse
@@ -352,9 +347,8 @@ $TTL 86400
 
 
 
-resolv.conf
--------------
--------------
+### resolv.conf
+
 to allow lan connected unbound(:53) first. internal request will be passed by unbound to nsd
 
 search wurstbot.com
@@ -363,9 +357,8 @@ nameserver 192.168.100.116
 nameserver 192.168.100.115
 
 
-dhcpd - /etc/dhcpd.conf
--------------------
--------------------
+# dhcpd - /etc/dhcpd.conf
+
 rcctl enable dhcpd
 rcctl set dhcpd flags em0   #set this to the LAN interface
 
@@ -389,7 +382,7 @@ cat dhclient.leases.em0
 cat dhcpd.leases
 
 
-sync. must have multicast enabled on both hosts
+### dhcpd sync. must have multicast enabled on both hosts
 ---------------------------------
 vi /etc/sysctl.conf
 net.inet.ip.forwarding=1
@@ -405,9 +398,8 @@ scp /var/db/dhcpd.key admin@ns2:/var/db/dhcpd.key
 on primary, listen on em0: dhcpd -y em0 -Y em0
 on second, just receive on em0:  dhcpd -Y em0
 
-NFS
----------------------------
----------------------------
+### NFS
+
 mkdir /data
 vi /etc/exports
 /data -alldirs -ro -mapall=remote -network=192.168.100 -mask=255.255.255.0
@@ -425,9 +417,8 @@ sudo apt-get install nfs-common
 sudo mount -t nfs -o noatime,intr 192.168.100.118:/data shared
 
 
-NTPD - /etc/ntpd.conf
-----------------
-----------------
+# NTPD - /etc/ntpd.conf
+
 listen on 192.168.100.118
 servers pool.ntp.org
 sensor *
@@ -437,10 +428,7 @@ rcctl enable ntpd
 rcctl start ntpd
 
 
-MYSQL - /etc/my.cnf
--------------------------------
-
-
+# MYSQL - /etc/my.cnf
 
 pkg_add mariadb-server
 rcctl enable mysqld
@@ -453,7 +441,7 @@ rcctl start mysqld
 mysql_secure_installation
 rcctl restart mysqld
 
-# mysql master configuration
+## mysql master configuration
 mysql -u root -p
 GRANT REPLICATION SLAVE ON *.* TO 'slave_user'@'%' IDENTIFIED BY 'password';
 FLUSH PRIVILEGES;
@@ -464,7 +452,7 @@ SHOW MASTER STATUS;
 mysqldump -u root -p --opt mydatabase > mydatabase.sql
 scp mydatabase.sql admin@ns2:
 
-#on the slave
+## mysql slave config
 create database mydatabase;
 
 CHANGE MASTER TO MASTER_HOST='172.16.0.1',MASTER_USER='slave_user', MASTER_PASSWORD='secret', MASTER_LOG_FILE='mysql-bin.000010', MASTER_LOG_POS=326;
@@ -477,9 +465,8 @@ start slave;
 show slave status\G
 
 
-relayd - /etc/relayd.conf
------------------------------
------------------------------
+# relayd - /etc/relayd.conf
+
 config below has on tcp relay for dns bound on 8853 and a web frontend
 
 rcctl relayd enable
@@ -531,7 +518,7 @@ session 0:7 192.168.100.114:48684 -> :0 RUNNING
         age 00:00:00, idle 00:00:00, relay 1, pid 3300
 
 
-httpd - /etc/httpd.conf
+# httpd - /etc/httpd.conf
 --------------------
 --------------------
 
@@ -633,8 +620,8 @@ server "node4.wurstbot.com" {
 }
 
 
-ACME-CLIENT
------------------------------------
+# ACME-CLIENT
+
 doas vi /etc/acme-client.conf
 
 domain node2.wurstbot.com {
@@ -670,7 +657,7 @@ in /etc/httpd.conf:
         #tls ocsp "/etc/ssl/node1.wurstbot.com.der"
 
 
-PHP-FPM - /etc/php*
+# PHP-FPM - /etc/php*
 ------------------------------------
 install php. php-fpm is included.
 symlink installed extensions from the example dir to the /etc/php-5.6 dir to use them
@@ -708,7 +695,7 @@ listen = 127.0.0.1:6060
 
 
 
-NRPE - /etc/nrpe.cfg
+# NRPE - /etc/nrpe.cfg
 ------------------------------------------
 ------------------------------------------
 install without ssl to avoid openssl
@@ -776,11 +763,11 @@ define service{
 
 
 
-NSCA client - /etc/send_nsca.cfg
-----------------------------------------------
-----------------------------------------------
+# NSCA client - /etc/send_nsca.cfg
+???
 
-LDAPD - /etc/ldapd.conf
+
+# LDAPD - /etc/ldapd.conf
 ------------------------------------
 secure just marks this as a trusted network.
 i could not figure out how to do the tls config
@@ -791,18 +778,19 @@ cp /etc/examples/ldapd.conf /etc/ldapd.conf
 int_if='em1'
 listen $int_if secure
 
-#secure connection. symlink to default folder when using the 'tls' option. expects cert to be named like interface
+secure connection. symlink to default folder when using the 'tls' option. expects cert to be named like interface
+
 openssl req -new -newkey rsa:2048 -nodes -keyout ns.wurstbot.com.key -out ns.wurstbot.com.csr
 openssl req -new -x509 -days 3652 -key /etc/ssl/ns.wurstbot.com.key -out /etc/ssl/ns.wurstbot.com.crt
 mv ns.wurstbot.com.* /etc/ssl
 ln -s /etc/ssl/ns.wurstbot.com.crt /etc/ldap/certs/em1.crt
 
-#configtest and show stats
+## configtest and show stats
 ldapd -nf /etc/ldapd.conf
 rcctl start ldapd
 
 
-SPAMD - /etc/mail/spamd.conf
+# SPAMD - /etc/mail/spamd.conf
 ------------------------------
 rcctl enable spamd
 
@@ -811,7 +799,7 @@ spamd_black=NO
 spamd_flags=-4 -G25:4:864 -h mail2.wurstbot.com -l127.0.0.1 -n \"Sendmail 8.11.4/8.11.1\" -S10 -s1 -v -w1
 spamlogd_flags="-I -i lo0"
 
-#add our local network to nospamd table. all other will suffer from torture ;)
+add our local network to nospamd table. all other will suffer from torture ;)
 echo '192.168.100.0' >> /etc/mail/nospamd
 
 in /etc/pf.conf
@@ -819,10 +807,11 @@ in /etc/pf.conf
 remove regular smtp binding. port 25 will be forwarded to spamd on port 8025. from there, spamd-white will
 be forwarded to port smtp
 
-#pass in on egress proto tcp to any port smtp
+pass in on egress proto tcp to any port smtp
 pass in on egress proto tcp to any port submission
 
-# rules for spamd(8)
+firewall rules for spamd(8)
+
 table <spamd-white> persist
 table <nospamd> persist file "/etc/mail/nospamd"
 pass in on egress proto tcp from any to any port smtp rdr-to 127.0.0.1 port spamd
@@ -841,13 +830,12 @@ rcctl restart spamd
 
 
 
-SMTPD - /etc/mail/smtpd.conf
-------------------------------------------
-------------------------------------------
+# SMTPD - /etc/mail/smtpd.conf
+
 rcctl enable smtpd
 
 
-#make sure to uncomment tables not used like passwd or virtuals!
+make sure to uncomment tables not used like passwd or virtuals!
 vi /etc/mail/smtpd.conf
 
 table aliases file:/etc/mail/aliases
@@ -855,14 +843,14 @@ table domains file:/etc/mail/domains
 table passwd file:/etc/mail/passwd
 table virtuals file:/etc/mail/virtuals
 
-# To accept external mail, replace with: listen on all
-#
+To accept external mail, replace with: listen on all
+
 listen on lo0
 listen on egress port 25
 listen on egress port 587
 
-# Uncomment the following to accept external mail for domain "wurstbot.com"
-#
+Uncomment the following to accept external mail for domain "wurstbot.com"
+
 accept from any for domain "wurstbot.com" alias <aliases> deliver to mbox
 accept for local alias <aliases> deliver to mbox
 accept from local for any relay
@@ -930,7 +918,7 @@ smtpctl monitor
 tail -f /var/log/maillog
 
 
-DOVECOT - /etc/dovecot/dovecot.conf
+# DOVECOT - /etc/dovecot/dovecot.conf
 ------------------------------
 ------------------------------
 To sync mail boxes: https://wiki2.dovecot.org/Tools/Doveadm/Sync
@@ -949,14 +937,15 @@ listen = *, ::
 !include conf.d/*.conf
 !include_try local.conf
 
-#set the mail location you want (mandatory)
+set the mail location you want (mandatory)
+
 vi /etc/dovecot/conf.d/10-mail.conf
 mail_location = mbox:~/mail:INBOX=/var/mail/%u
 
-#make a self signed cert
+make a self signed cert
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/dovecot.pem -out /etc/ssl/dovecotcert.pem
 
-#make sure ssl paths are right
+make sure ssl paths are right
 vi /etc/dovecot/conf.d/10-ssl.conf
 ssl_cert = </etc/ssl/dovecotcert.pem
 ssl_key = </etc/ssl/private/dovecot.pem
@@ -966,7 +955,7 @@ ssl_cipher_list = AES128+EECDH:AES128+EDH
 ssl_prefer_server_ciphers = yes
 
 
-#enable imaps on port 993 in 10-master.conf
+enable imaps on port 993 in 10-master.conf
   inet_listener imaps {
     port = 993
     ssl = yes

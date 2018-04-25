@@ -82,14 +82,15 @@
   become_method: doas
 
   tasks:
-    - name: sysctl - configure kernel options
-      blockinfile:
-        dest: /etc/sysctl.conf
-        block: |
-          kern.shminfo.shmmax=134217728
-          kern.shminfo.shmall=524288
-          kern.shminfo.shmmni=240
-        create: true
+  - name: sysctl - configure kernel options
+    blockinfile:
+      dest: /etc/sysctl.conf
+      block: |
+        kern.shminfo.shmmax=134217728
+        kern.shminfo.shmall=524288
+        kern.shminfo.shmmni=240
+      create: true
+      backup: yes
 
   #######################################
   # DOAS
@@ -284,64 +285,6 @@
     shell: rcctl enable slowcgi
 
   #######################################
-  # HTTPD
-  #######################################
-- name: configure httpd
-  hosts: node4
-  user: admin
-  become: true
-  become_method: doas
-
-  vars:
-    httpd_vhost: "wurstbot.com"
-
-  tasks:
-  - name: httpd - configure httpd
-    blockinfile:
-      dest: /etc/httpd.conf
-      block: |
-        server "*.{{ httpd_vhost}}" {
-         listen on egress port 80
-         listen on lo port 80
-         root "/{{ httpd_vhost}}"
-
-         location "/.well-known/acme-challenge/*" {
-              root "/acme"
-              root strip 2
-         }
-
-         #tls certificate "/etc/ssl/{{ httpd_vhost}}.crt"
-         #tls key "/etc/ssl/private/{{ httpd_vhost}}.key"
-         #tls ocsp "/etc/ssl/{{ httpd_vhost}}m.der"
-         # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-
-           location "*.php*" {
-              fastcgi socket ":6060"
-           }
-        }
-      create: true
-
-  - name: httpd - check config
-    command: /usr/sbin/httpd -n
-    register: httpd_result
-    ignore_errors: yes
-
-  - name: httpd - handle failure
-    action: fail msg="httpd.conf check failed."
-    when: httpd_result|failed
-
-  - name: httpd - started
-    service: name=slowcgi state=started
-
-  - name: httpd - enable
-    shell: rcctl enable httpd
-
-  - name: httpd - reload httpd
-    service: name=httpd state=reloaded
-    when: httpd_result is succeeded
-
-
-  #######################################
   # ACME
   #######################################
 - name: configure acme
@@ -382,6 +325,75 @@
     shell: /usr/sbin/acme-client -vD {{ dns_name }}
     ignore_errors: true
 
+  - name: acme - create ocsp
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+
+  #######################################
+  # HTTPD
+  #######################################
+- name: configure httpd
+  hosts: node4
+  user: admin
+  become: true
+  become_method: doas
+
+  vars:
+    httpd_vhost: "wurstbot.com"
+    php_port: 6060
+
+  tasks:
+  - name: httpd - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server "*.{{ httpd_vhost}}" {
+           listen on egress port 80
+           listen on lo port 80
+           root "/{{ httpd_vhost}}"
+
+           # listen on egress tls port 443
+           # tls certificate "/etc/ssl/{{ httpd_vhost}}.crt"
+           # tls key "/etc/ssl/private/{{ httpd_vhost}}.key"
+           # tls ocsp "/etc/ssl/{{ httpd_vhost}}.der"
+
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+
+           location "/.well-known/acme-challenge/*" {
+                root "/acme"
+                root strip 2
+           }
+
+           location "*.php*" {
+              fastcgi socket ":{{ php_port }}"
+           }
+
+           location "*.cgi" {
+                   root { "/" }
+                   fastcgi socket "/run/slowcgi.sock"
+           }
+        }
+      create: true
+
+  - name: httpd - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: httpd - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: httpd - started
+    service: name=slowcgi state=started
+
+  - name: httpd - enable
+    shell: rcctl enable httpd
+
+  - name: httpd - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded
+
 
   #######################################
   # MariaDB
@@ -396,8 +408,8 @@
     mysql_version: "10.0.34v1"
 
     # replication related
-    mysql_root_pass: "supersecret"
-    mysql_repl_pass: "supersecret"
+    mysql_root_pass: "1tsAdm1n"
+    mysql_repl_pass: "1tsAdm1n"
     mysql_is_master: true
     mysql_is_slave: false
     mysql_master_host: ""
@@ -467,7 +479,7 @@
     #replication user name is "database_slave"
   - name: mysql - grant replication privileges to {{ item }}_slave for replicated dbs
     mysql_user: user={{ item }}_slave password={{ mysql_repl_pass }} priv="*.*:REPLICATION SLAVE" login_user=root login_password={{ mysql_root_pass }} state=present
-    with_items: mysql_repl_dbs
+    with_items: '{{mysql_repl_dbs}}'
     when: mysql_is_master
     register: mysql_grant_replication_result
 
@@ -478,7 +490,7 @@
       insertafter: "^log-bin="
       backup: yes
       create: true
-    with_items: mysql_repl_dbs
+    with_items: '{{mysql_repl_dbs}}'
     when: mysql_is_master and mysql_grant_replication_result is succeeded
     register: mysql_repl_config_results
 

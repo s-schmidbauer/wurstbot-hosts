@@ -199,6 +199,60 @@
     service: name=sshd state=reloaded
 
   #######################################
+  # NRPE
+  #######################################
+- name: configure nrpe
+  hosts: node4
+  user: admin
+  become: true
+  become_method: doas
+
+  vars:
+    #2.15p8-no_ssl or 2.15p8 for openbsd 6.3
+    nrpe_version: 2.15p8-no_ssl
+    nagios_servers: 127.0.0.1,192.168.0.0/24,172.16.0.0/24
+    nrpe_commands:
+      - "command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10"
+
+  tasks:
+  - name: nrpe - install
+    openbsd_pkg: name=nrpe-{{ nrpe_version }} state=present
+
+  - name: nrpe - start
+    service: name=nrpe state=started
+
+  - name: nrpe - enable
+    shell: rcctl enable nrpe
+
+  - name: nrpe - config service
+    blockinfile:
+      dest: /etc/nrpe.cfg
+      block: |
+        log_facility=daemon
+        server_port=5666
+        allowed_hosts={{ nagios_servers }}
+        debug=0
+        connection_timeout=300
+        allow_weak_random_seed=0
+        {{ nrpe_commands }}
+      backup: yes
+      state: present
+    register: nrpe_config_results
+
+  # - name: nrpe - extra config - commands
+  #   blockinfile:
+  #     dest: /etc/nrpe.cfg
+  #     block: |
+  #
+  #     backup: yes
+  #     state: present
+  #   register: nrpe_config_results
+
+  - name: nrpe - restart
+    service: name=nrpe state=restarted
+    when: nrpe_config_results|changed
+
+  #######################################
   # PHP-FPM
   #######################################
 - name: configure php-fpm

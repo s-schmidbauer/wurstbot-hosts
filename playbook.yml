@@ -199,6 +199,51 @@
     service: name=sshd state=reloaded
 
   #######################################
+  # ACME
+  #######################################
+- name: configure acme
+  hosts: node4
+  user: admin
+  become: true
+  become_method: doas
+
+  vars:
+    dns_name: "node4.wurstbot.com"
+    dns_san_names: ""
+
+  tasks:
+  - name: acme - configure acme
+    blockinfile:
+      dest: /etc/acme-client.conf
+      block: |
+        domain "{{ dns_name }}" {
+          domain key "/etc/ssl/private/{{ dns_name }}.key"
+          domain certificate "/etc/ssl/{{ dns_name }}.crt"
+          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
+          sign with letsencrypt
+        }
+      backup: yes
+      create: true
+
+  # - name: acme - check config
+  #   command: /usr/sbin/acme-client -n
+  #   register: acme_result
+  #   ignore_errors: yes
+  #
+  # - name: acme - handle failure
+  #   action: fail msg="acme-client.conf check failed."
+  #   when: acme_result|failed
+
+    #make sure the cert does not exist yet and a webserver is able to satisify the request
+  - name: acme - configure certs and keys
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    ignore_errors: true
+
+  - name: acme - create ocsp
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+
+  #######################################
   # NRPE
   #######################################
 - name: configure nrpe
@@ -210,6 +255,7 @@
   vars:
     #2.15p8-no_ssl or 2.15p8 for openbsd 6.3
     nrpe_version: 2.15p8-no_ssl
+    nrpe_port: 5666
     nagios_servers: 127.0.0.1,192.168.0.0/24,172.16.0.0/24
     nrpe_commands:
       - "command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10"
@@ -229,7 +275,7 @@
       dest: /etc/nrpe.cfg
       block: |
         log_facility=daemon
-        server_port=5666
+        server_port={{ nrpe_port }}
         allowed_hosts={{ nagios_servers }}
         debug=0
         connection_timeout=300
@@ -338,50 +384,6 @@
   - name: slowcgi - enable
     shell: rcctl enable slowcgi
 
-  #######################################
-  # ACME
-  #######################################
-- name: configure acme
-  hosts: node4
-  user: admin
-  become: true
-  become_method: doas
-
-  vars:
-    dns_name: "node4.wurstbot.com"
-    dns_san_names: ""
-
-  tasks:
-  - name: acme - configure acme
-    blockinfile:
-      dest: /etc/acme-client.conf
-      block: |
-        domain "{{ dns_name }}" {
-          domain key "/etc/ssl/private/{{ dns_name }}.key"
-          domain certificate "/etc/ssl/{{ dns_name }}.crt"
-          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
-          sign with letsencrypt
-        }
-      backup: yes
-      create: true
-
-  # - name: acme - check config
-  #   command: /usr/sbin/acme-client -n
-  #   register: acme_result
-  #   ignore_errors: yes
-  #
-  # - name: acme - handle failure
-  #   action: fail msg="acme-client.conf check failed."
-  #   when: acme_result|failed
-
-    #make sure the cert does not exist yet and a webserver is able to satisify the request
-  - name: acme - configure certs and keys
-    shell: /usr/sbin/acme-client -vD {{ dns_name }}
-    ignore_errors: true
-
-  - name: acme - create ocsp
-    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
-    register: ocsp_create_result
 
   #######################################
   # HTTPD
@@ -393,7 +395,8 @@
   become_method: doas
 
   vars:
-    httpd_vhost: "wurstbot.com"
+    #httpd_vhost: "wurstbot.com"
+    dns_name: node4.wurstbot.com
     php_port: 6060
 
   tasks:
@@ -401,15 +404,15 @@
     blockinfile:
       dest: /etc/httpd.conf
       block: |
-        server "*.{{ httpd_vhost}}" {
+        server {{ dns_name }} {
            listen on egress port 80
            listen on lo port 80
-           root "/{{ httpd_vhost}}"
+           root "/{{ dns_name }}"
 
            # listen on egress tls port 443
-           # tls certificate "/etc/ssl/{{ httpd_vhost}}.crt"
-           # tls key "/etc/ssl/private/{{ httpd_vhost}}.key"
-           # tls ocsp "/etc/ssl/{{ httpd_vhost}}.der"
+           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           # tls key "/etc/ssl/private/{{ dns_name }}.key"
+           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
 
@@ -428,6 +431,7 @@
            }
         }
       create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost"
 
   - name: httpd - check config
     command: /usr/sbin/httpd -n
@@ -447,6 +451,117 @@
   - name: httpd - reload httpd
     service: name=httpd state=reloaded
     when: httpd_result is succeeded
+
+  #######################################
+  # NAGIOS
+  #######################################
+- name: configure nagios
+  hosts: node4
+  user: admin
+  become: true
+  become_method: doas
+
+  vars:
+    nagios_server: true
+    nagios_version: "4.3.1p0"
+    nagios_web_version: "4.3.1"
+    dns_name: nagios.wurstbot.com
+
+    # replication related
+    nagios_password: "supersecret"
+
+  tasks:
+  - name: nagios - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - nagios-{{ nagios_version }}-chroot
+      # web  is not tested with -chroot yet
+      - nagios-web-{{ nagios_web_version }}-chroot
+      - py-passlib-1.7.1p0
+
+  # - name: mysql - install_db
+  #   shell: mysql_install_db
+  #   run_once: true
+  #   ignore_errors: true
+
+  - name: nagios - started
+    service: name=nagios state=started
+
+  - name: nagios - enable
+    shell: rcctl enable nagios
+
+  - name: mysql - configure basic auth for nagiosadmin
+    htpasswd:
+      path: /var/www/.nagioshtaccess
+      name: nagiosadmin
+      password: 'supersecret'
+      owner: www
+      group: www
+      mode: 0440
+    register: nagios_basic_auth_config_results
+
+  - name: nagios - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ dns_name }} {
+           listen on egress port 80
+           listen on lo port 80
+           root "/nagios"
+           authenticate with ".nagioshtaccess"
+
+            directory {
+                    index "index.php"
+            }
+
+            location "/cgi-bin/nagios/*.cgi" {
+                    root { "/" }
+                    fastcgi socket "/run/slowcgi.sock"
+            }
+
+            location "*.php*" {
+                    fastcgi socket ":6060"
+            }
+
+            location "/nagios*" {
+                    root { "/nagios", strip 1 }
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
+
+
+  - name: nagios - check config
+    command: nagios -v /var/www/etc/nagios/nagios.cfg
+    register: nagios_result
+    ignore_errors: yes
+
+  - name: nagios - handle failure
+    action: fail msg="nagios.cfg check failed."
+    when: nagios_result|failed
+
+  - name: nagios - reload nagios
+    service: name=nagios state=reloaded
+    when: nagios_result is succeeded
+
+  - name: nagios - started
+    service: name=nagios state=started
+
+  - name: nagios - enable
+    shell: rcctl enable nagios
+
+  - name: nagios - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: nagios - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: nagios - reload httpd when config changed
+    service: name=httpd state=reloaded
+    when: nagios_result is succeeded and httpd_result is succeeded
 
 
   #######################################

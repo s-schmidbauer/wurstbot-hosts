@@ -469,6 +469,10 @@
 
     # replication related
     nagios_password: "supersecret"
+    nagios_clients:
+      - node2.wurstbot.com
+      - node4.wurstbot.com
+      - node5.wurstbot.com
 
   tasks:
   - name: nagios - install
@@ -479,18 +483,13 @@
       - nagios-web-{{ nagios_web_version }}-chroot
       - py-passlib-1.7.1p0
 
-  # - name: mysql - install_db
-  #   shell: mysql_install_db
-  #   run_once: true
-  #   ignore_errors: true
-
   - name: nagios - started
     service: name=nagios state=started
 
   - name: nagios - enable
     shell: rcctl enable nagios
 
-  - name: mysql - configure basic auth for nagiosadmin
+  - name: nagios - configure basic auth for nagiosadmin
     htpasswd:
       path: /var/www/.nagioshtaccess
       name: nagiosadmin
@@ -498,7 +497,56 @@
       owner: www
       group: www
       mode: 0440
-    register: nagios_basic_auth_config_results
+    # register: nagios_basic_auth_config_results
+
+  - name: nagios - configure host config file
+    blockinfile:
+      dest: /etc/nagios/objects/{{ item }}.cfg
+      block: |
+        define host {
+                host_name       {{ item }}
+                address         {{ item }}
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios hosts"
+      create: true
+      backup: yes
+    with_items: '{{nagios_clients}}'
+
+  - name: nagios - configure services
+    blockinfile:
+      dest: /etc/nagios/objects/{{ item }}.cfg
+      block: |
+        define service {
+                use                             local-service         ; Name of service template to use
+                host_name                       {{ item }}
+                service_description             Disk /home
+                check_command                   check_nrpe!check_disk_home
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
+      create: true
+      backup: yes
+    with_items: '{{nagios_clients}}'
+
+  - name: nagios - check config
+    command: nagios -v /var/www/etc/nagios/nagios.cfg
+    register: nagios_result
+    ignore_errors: yes
+
+  - name: nagios - handle failure
+    action: fail msg="nagios.cfg check failed."
+    when: nagios_result|failed
+
+  - name: nagios - reload nagios
+    service: name=nagios state=reloaded
+    when: nagios_result is succeeded
+
+  - name: nagios - started
+    service: name=nagios state=started
+
+  - name: nagios - enable
+    shell: rcctl enable nagios
+
 
   - name: nagios - configure httpd vhost
     blockinfile:
@@ -530,26 +578,6 @@
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
 
-
-  - name: nagios - check config
-    command: nagios -v /var/www/etc/nagios/nagios.cfg
-    register: nagios_result
-    ignore_errors: yes
-
-  - name: nagios - handle failure
-    action: fail msg="nagios.cfg check failed."
-    when: nagios_result|failed
-
-  - name: nagios - reload nagios
-    service: name=nagios state=reloaded
-    when: nagios_result is succeeded
-
-  - name: nagios - started
-    service: name=nagios state=started
-
-  - name: nagios - enable
-    shell: rcctl enable nagios
-
   - name: nagios - check httpd config
     command: /usr/sbin/httpd -n
     register: httpd_result
@@ -577,7 +605,7 @@
     mysql_version: "10.0.34v1"
 
     # replication related
-    mysql_root_pass: "supersecret"
+    mysql_root_pass: "1tsAdm1n"
     mysql_repl_pass: "supersecret"
     mysql_is_master: true
     mysql_is_slave: false

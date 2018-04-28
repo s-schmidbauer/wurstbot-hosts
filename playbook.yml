@@ -462,17 +462,34 @@
   become_method: doas
 
   vars:
+    php_port: 6060
     nagios_server: true
     nagios_version: "4.3.1p0"
     nagios_web_version: "4.3.1"
     dns_name: nagios.wurstbot.com
 
     # replication related
-    nagios_password: "supersecret"
+    nagios_password: supersecret
     nagios_clients:
-      - node2.wurstbot.com
-      - node4.wurstbot.com
-      - node5.wurstbot.com
+      - node2
+      - node4
+      - node5
+    nagios_clients_ssh: #port 3200
+      - node2
+      - node4
+      - node5
+    nagios_clients_http: #port 80, 443
+      - node2
+      - node4
+      - node5
+    nagios_clients_zabbix: #port 10050
+      - node4
+      - node5
+    nagios_clients_mysql: #port 3306
+      - node4
+      - node5
+    nagios_clients_tor: #port 8443, 9050
+      - node2
 
   tasks:
   - name: nagios - install
@@ -493,40 +510,163 @@
     htpasswd:
       path: /var/www/.nagioshtaccess
       name: nagiosadmin
-      password: 'supersecret'
+      password: "{{ nagios_password }}"
       owner: www
       group: www
       mode: 0440
     # register: nagios_basic_auth_config_results
 
-  - name: nagios - configure host config file
+  - name: nagios - configure commands
     blockinfile:
-      dest: /etc/nagios/objects/{{ item }}.cfg
+      dest: /etc/nagios/objects/commands.cfg
       block: |
-        define host {
-                host_name       {{ item }}
-                address         {{ item }}
+        define command {
+            command_name    check_nrpe
+            command_line    $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
         }
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios hosts"
       create: true
       backup: yes
-    with_items: '{{nagios_clients}}'
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios commands"
+
+  - name: nagios - configure hosts
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define host {
+                use openbsd-server
+                host_name       {{ item }}
+                address         {{ item }}.wurstbot.com
+        }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios host {{ item }}"
+    with_items: '{{ nagios_clients }}'
+
+  - name: nagios - configure hostgroups
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define hostgroup {
+                hostgroup_name  wurstbot-openbsd-servers ;
+                alias           OpenBSD Servers ;
+                members         {{ nagios_clients |join(', ') }}
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios hostgroups "
+      create: true
+      backup: yes
+    with_items: '{{ nagios_clients }}'
 
   - name: nagios - configure services
     blockinfile:
-      dest: /etc/nagios/objects/{{ item }}.cfg
+      dest: /etc/nagios/objects/localhost.cfg
       block: |
+        # DISK CHECKS
+        ############
+        define service{
+                use                             local-service         ; Name of service template to use
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             PING
+                check_command                   check_ping!100.0,20%!500.0,60%
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service         ; Name of service template to use
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Root Partition
+                check_command                   check_local_disk!20%!10%!/
+                notifications_enabled           1
+        }
         define service {
                 use                             local-service         ; Name of service template to use
-                host_name                       {{ item }}
+                host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Disk /home
                 check_command                   check_nrpe!check_disk_home
-                notifications_enabled           0
+                notifications_enabled           1
         }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Disk /var
+                check_command                   check_nrpe!check_disk_var
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Disk /usr
+                check_command                   check_nrpe!check_disk_usr
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Disk /usr/local
+                check_command                   check_nrpe!check_disk_usr_local
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Disk /tmp
+                check_command                   check_nrpe!check_disk_tmp
+                notifications_enabled           1
+        }
+        # TCP CHECKS
+        ############
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_ssh |join(', ') }}
+                service_description             SSH
+                check_command                   check_tcp!3200
+                notifications_enabled           1
+                }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mysql |join(', ') }}
+                service_description             mysql
+                check_command                   check_tcp!3306
+                notifications_enabled           1
+                }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_zabbix |join(', ') }}
+                service_description             zabbix server
+                check_command                   check_tcp!10050
+                notifications_enabled           1
+                }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_tor |join(', ') }}
+                service_description             Tor SocksPort
+                check_command                   check_tcp!9050
+                notifications_enabled           1
+                }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_tor |join(', ') }}
+                service_description             Tor OrPort
+                check_command                   check_tcp!8443
+                notifications_enabled           1
+                }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ') }}
+                service_description             HTTP
+                check_command                   check_tcp!80
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ') }}
+                service_description             HTTPS
+                check_command                   check_tcp!443
+                notifications_enabled           1
+        }
+
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true
       backup: yes
-    with_items: '{{nagios_clients}}'
+    # with_items: '{{nagios_clients}}'
 
   - name: nagios - check config
     command: nagios -v /var/www/etc/nagios/nagios.cfg
@@ -546,7 +686,6 @@
 
   - name: nagios - enable
     shell: rcctl enable nagios
-
 
   - name: nagios - configure httpd vhost
     blockinfile:
@@ -568,7 +707,7 @@
             }
 
             location "*.php*" {
-                    fastcgi socket ":6060"
+                    fastcgi socket ":{{ php_port }}"
             }
 
             location "/nagios*" {
@@ -605,7 +744,7 @@
     mysql_version: "10.0.34v1"
 
     # replication related
-    mysql_root_pass: "1tsAdm1n"
+    mysql_root_pass: "supersecret"
     mysql_repl_pass: "supersecret"
     mysql_is_master: true
     mysql_is_slave: false

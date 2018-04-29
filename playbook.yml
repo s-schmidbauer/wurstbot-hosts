@@ -464,15 +464,12 @@
       # web  is not tested with -chroot yet
       - nagios-web-{{ nagios_web_version }}-chroot
       - py-passlib-1.7.1p0
-    when: nagios_server == True
 
   - name: nagios - started
     service: name=nagios state=started
-    when: nagios_server == True
 
   - name: nagios - enable
     shell: rcctl enable nagios
-    when: nagios_server == True
 
   - name: nagios - configure basic auth for nagiosadmin
     htpasswd:
@@ -483,7 +480,6 @@
       group: www
       mode: 0440
     # register: nagios_basic_auth_config_results
-    when: nagios_server == True
 
   - name: nagios - configure commands
     blockinfile:
@@ -512,7 +508,6 @@
       create: true
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios commands"
-    when: nagios_server == True
 
   - name: nagios - configure hosts
     blockinfile:
@@ -527,7 +522,6 @@
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios host {{ item }}"
     with_items: '{{ nagios_clients }}'
-    when: nagios_server == True
 
   - name: nagios - configure hostgroups
     blockinfile:
@@ -542,7 +536,6 @@
       create: true
       backup: yes
     with_items: '{{ nagios_clients }}'
-    when: nagios_server == True
 
   - name: nagios - configure services
     blockinfile:
@@ -697,30 +690,26 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true
       backup: yes
-    when: nagios_server == True
     # with_items: '{{nagios_clients}}'
 
   - name: nagios - check config
     command: nagios -v /var/www/etc/nagios/nagios.cfg
     register: nagios_result
     ignore_errors: yes
-    when: nagios_server == True
 
   - name: nagios - handle failure
     action: fail msg="nagios.cfg check failed."
-    when: nagios_server == True and nagios_result|failed
+    when: nagios_result|failed
 
   - name: nagios - reload nagios
     service: name=nagios state=reloaded
-    when: nagios_server == True and nagios_result is succeeded
+    when: nagios_result is succeeded
 
   - name: nagios - started
     service: name=nagios state=started
-    when: nagios_server == True
 
   - name: nagios - enable
     shell: rcctl enable nagios
-    when: nagios_server == True
 
   - name: nagios - configure httpd vhost
     blockinfile:
@@ -751,21 +740,19 @@
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
-    when: nagios_server == True
 
   - name: nagios - check httpd config
     command: /usr/sbin/httpd -n
     register: httpd_result
     ignore_errors: yes
-    when: nagios_server == True
 
   - name: nagios - handle httpd failure
     action: fail msg="httpd.conf check failed."
-    when: nagios_server == True and httpd_result|failed
+    when: httpd_result|failed
 
   - name: nagios - reload httpd when config changed
     service: name=httpd state=reloaded
-    when: nagios_server == True and nagios_result is succeeded and httpd_result is succeeded
+    when: nagios_result is succeeded and httpd_result is succeeded
 
 
   #######################################

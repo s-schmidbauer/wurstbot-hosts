@@ -190,58 +190,13 @@
       dest: /etc/ssh/sshd_config
       block: |
         Port {{ ssh_port }}
-        PermitRootLogin no
+        PermitRootLogin yes
         PasswordAuthentication yes
       backup: yes
       validate: "/usr/sbin/sshd -T -f %s"
 
   - name: ssh - reload sshd
     service: name=sshd state=reloaded
-
-  #######################################
-  # ACME
-  #######################################
-- name: configure acme
-  hosts: node4
-  user: admin
-  become: true
-  become_method: doas
-
-  vars:
-    dns_name: "node4.wurstbot.com"
-    dns_san_names: ""
-
-  tasks:
-  - name: acme - configure acme
-    blockinfile:
-      dest: /etc/acme-client.conf
-      block: |
-        domain "{{ dns_name }}" {
-          domain key "/etc/ssl/private/{{ dns_name }}.key"
-          domain certificate "/etc/ssl/{{ dns_name }}.crt"
-          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
-          sign with letsencrypt
-        }
-      backup: yes
-      create: true
-
-  # - name: acme - check config
-  #   command: /usr/sbin/acme-client -n
-  #   register: acme_result
-  #   ignore_errors: yes
-  #
-  # - name: acme - handle failure
-  #   action: fail msg="acme-client.conf check failed."
-  #   when: acme_result|failed
-
-    #make sure the cert does not exist yet and a webserver is able to satisify the request
-  - name: acme - configure certs and keys
-    shell: /usr/sbin/acme-client -vD {{ dns_name }}
-    ignore_errors: true
-
-  - name: acme - create ocsp
-    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
-    register: ocsp_create_result
 
   #######################################
   # NRPE
@@ -254,9 +209,10 @@
 
   vars:
     #2.15p8-no_ssl or 2.15p8 for openbsd 6.3
+    #2.15p7-no_ssl or 2.15p7 for openbsd 6.2
     nrpe_version: 2.15p8-no_ssl
     nrpe_port: 5666
-    nagios_servers: 127.0.0.1,93.170.104.52,93.171.216.20,45.32.185.50
+    nagios_servers: 127.0.0.1,93.170.104.52,93.171.216.20,45.32.185.50,45.32.152.181
     nrpe_commands:
       - "command[check_disk_root]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /"
       - "command[check_disk_home]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /home"
@@ -275,6 +231,10 @@
   - name: nrpe - enable
     shell: rcctl enable nrpe
 
+  - name: nrpe - concatenate commands
+    set_fact:
+      nrpe_commands_list: "{{ nrpe_commands | join('\n') }}"
+
   - name: nrpe - config service
     blockinfile:
       dest: /etc/nrpe.cfg
@@ -285,7 +245,7 @@
         debug=0
         connection_timeout=300
         allow_weak_random_seed=0
-        {{ nrpe_commands }}
+        {{ nrpe_commands_list }}
       backup: yes
       state: present
     register: nrpe_config_results
@@ -313,7 +273,8 @@
   become_method: doas
 
   vars:
-    # 5.6.34 or 7.0.28
+    # 5.6.34 or 7.0.28 for openbsd 6.3
+    # 5.6.31 or 7.0.23 for openbsd 6.2
     php_version: "5.6.34"
     php_port: 6060
 
@@ -377,7 +338,7 @@
   # SLOWCGI
   #######################################
 - name: configure slowcgi
-  hosts: node4
+  hosts: node5
   user: admin
   become: true
   become_method: doas
@@ -394,7 +355,7 @@
   # HTTPD
   #######################################
 - name: configure httpd
-  hosts: node4
+  hosts: node5
   user: admin
   become: true
   become_method: doas
@@ -458,6 +419,75 @@
     when: httpd_result is succeeded
 
   #######################################
+  # ACME
+  #######################################
+- name: configure acme
+  hosts: node5
+  user: admin
+  become: true
+  become_method: doas
+
+  vars:
+    dns_name: "node5.wurstbot.com"
+    dns_san_names: ""
+
+  tasks:
+  - name: acme - configure acme
+    blockinfile:
+      dest: /etc/acme-client.conf
+      block: |
+        domain "{{ dns_name }}" {
+          domain key "/etc/ssl/private/{{ dns_name }}.key"
+          domain certificate "/etc/ssl/{{ dns_name }}.crt"
+          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
+          sign with letsencrypt
+        }
+      backup: yes
+      create: true
+
+  # - name: acme - check config
+  #   command: /usr/sbin/acme-client -n
+  #   register: acme_result
+  #   ignore_errors: yes
+  #
+  # - name: acme - handle failure
+  #   action: fail msg="acme-client.conf check failed."
+  #   when: acme_result|failed
+
+  - name: acme - create new key and cert if expired
+    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
+    register: acme_renew_result
+    ignore_errors: true
+
+    #make sure the cert does not exist yet and a webserver is able to satisify the request
+  - name: acme - configure cert and key
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    ignore_errors: true
+
+  - name: acme - create ocsp
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+    ignore_errors: true
+
+  - name: acme - delete old key and cert if expired
+    shell: rm /etc/ssl/private/{{ dns_name }}.key ; rm /etc/ssl/certs/{{ dns_name }}.*
+    ignore_errors: true
+    register: acme_expired_deletion_result
+    when: ocsp_create_result.stdout.find('old') != -1
+
+  - name: acme - create new key and cert if expired
+    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
+    register: acme_renew_result
+    when: acme_expired_deletion_result is succeeded
+    ignore_errors: true
+
+  - name: acme - refresh ocsp if key and cert were renewed
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+    when: acme_renew_result is succeeded
+    ignore_errors: true
+
+  #######################################
   # NAGIOS
   #######################################
 - name: configure nagios
@@ -469,6 +499,9 @@
   vars:
     php_port: 6060
     nagios_server: true
+    # 4.3.1p0 on openbsd 6.3
+    # 4.3.1 on openbsd 6.2
+    # 4.3.1 nagios web on openbsd 6.2 / 6.3
     nagios_version: "4.3.1p0"
     nagios_web_version: "4.3.1"
     dns_name: nagios.wurstbot.com
@@ -504,12 +537,15 @@
       # web  is not tested with -chroot yet
       - nagios-web-{{ nagios_web_version }}-chroot
       - py-passlib-1.7.1p0
+    when: nagios_server == True
 
   - name: nagios - started
     service: name=nagios state=started
+    when: nagios_server == True
 
   - name: nagios - enable
     shell: rcctl enable nagios
+    when: nagios_server == True
 
   - name: nagios - configure basic auth for nagiosadmin
     htpasswd:
@@ -520,6 +556,7 @@
       group: www
       mode: 0440
     # register: nagios_basic_auth_config_results
+    when: nagios_server == True
 
   - name: nagios - configure commands
     blockinfile:
@@ -532,6 +569,7 @@
       create: true
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios commands"
+    when: nagios_server == True
 
   - name: nagios - configure hosts
     blockinfile:
@@ -546,6 +584,7 @@
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios host {{ item }}"
     with_items: '{{ nagios_clients }}'
+    when: nagios_server == True
 
   - name: nagios - configure hostgroups
     blockinfile:
@@ -560,6 +599,7 @@
       create: true
       backup: yes
     with_items: '{{ nagios_clients }}'
+    when: nagios_server == True
 
   - name: nagios - configure services
     blockinfile:
@@ -671,26 +711,30 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true
       backup: yes
+    when: nagios_server == True
     # with_items: '{{nagios_clients}}'
 
   - name: nagios - check config
     command: nagios -v /var/www/etc/nagios/nagios.cfg
     register: nagios_result
     ignore_errors: yes
+    when: nagios_server == True
 
   - name: nagios - handle failure
     action: fail msg="nagios.cfg check failed."
-    when: nagios_result|failed
+    when: nagios_server == True and nagios_result|failed
 
   - name: nagios - reload nagios
     service: name=nagios state=reloaded
-    when: nagios_result is succeeded
+    when: nagios_server == True and nagios_result is succeeded
 
   - name: nagios - started
     service: name=nagios state=started
+    when: nagios_server == True
 
   - name: nagios - enable
     shell: rcctl enable nagios
+    when: nagios_server == True
 
   - name: nagios - configure httpd vhost
     blockinfile:
@@ -721,19 +765,21 @@
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
+    when: nagios_server == True
 
   - name: nagios - check httpd config
     command: /usr/sbin/httpd -n
     register: httpd_result
     ignore_errors: yes
+    when: nagios_server == True
 
   - name: nagios - handle httpd failure
     action: fail msg="httpd.conf check failed."
-    when: httpd_result|failed
+    when: nagios_server == True and httpd_result|failed
 
   - name: nagios - reload httpd when config changed
     service: name=httpd state=reloaded
-    when: nagios_result is succeeded and httpd_result is succeeded
+    when: nagios_server == True and nagios_result is succeeded and httpd_result is succeeded
 
 
   #######################################
@@ -746,18 +792,23 @@
   become_method: doas
 
   vars:
+    #10.0.34v1 for openbsd 6.3
+    #10.0.32v1 for openbsd 6.2
     mysql_version: "10.0.34v1"
 
     # replication related
     mysql_root_pass: "supersecret"
     mysql_repl_pass: "supersecret"
-    mysql_is_master: true
-    mysql_is_slave: false
-    mysql_master_host: ""
+    mysql_is_master: false
+    mysql_is_slave: true
+    mysql_master_host: "45.32.152.181"
     mysql_repl_dbs:
       - zabbix
 
+    # 5.6.34 or 7.0.28 for openbsd 6.3
+    # 5.6.31 or 7.0.23 for Openbsd 6.2
     php_version: "5.6.34"
+    #1.2.5p4 for openbsd 6.2 / 6.3
     py_mysql_version: "1.2.5p4"
 
   tasks:

@@ -1,2 +1,4 @@
 [node4]
 node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+[node5]
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa

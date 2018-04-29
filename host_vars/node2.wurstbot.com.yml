@@ -1,0 +1,88 @@
+#python-2.7.14p1 for OpenBSD 6.3
+#python-2.7.14 for OpenBSD 6.2
+
+# BASE
+install_url: https://ftp.fsn.hu/pub/OpenBSD
+dns_name: node2.wurstbot.com
+
+# SYSTEM AND PACKAGE UPDATES
+update_mode: false
+
+#SSH
+ssh_port: 3200
+
+# PHP
+# 5.6.34 or 7.0.28 for openbsd 6.3
+# 5.6.31 or 7.0.23 for openbsd 6.2
+php_version: "5.6.34"
+php_port: 6060
+
+# NRPE
+#2.15p8-no_ssl or 2.15p8 for openbsd 6.3
+#2.15p7-no_ssl or 2.15p7 for openbsd 6.2
+nrpe_version: 2.15p8-no_ssl
+nrpe_port: 5666
+nagios_servers: 127.0.0.1,93.170.104.52,93.171.216.20,45.32.185.50,45.32.152.181
+nrpe_commands:
+  - "command[check_disk_root]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /"
+  - "command[check_disk_home]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /home"
+  - "command[check_disk_usr]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /usr"
+  - "command[check_disk_usr_local]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /usr/local"
+  - "command[check_disk_tmp]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /tmp"
+  - "command[check_disk_var]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /var"
+
+# ACME-client
+dns_san_names: ""
+
+# NAGIOS
+nagios_server: true
+# 4.3.1p0 on openbsd 6.3
+# 4.3.1 on openbsd 6.2
+# 4.3.1 nagios web on openbsd 6.2 / 6.3
+nagios_version: "4.3.1p0"
+nagios_web_version: "4.3.1"
+nagios_dns_name: nagios.wurstbot.com
+nagios_password: supersecret
+nagios_clients:
+  - node2
+  - node4
+  - node5
+nagios_clients_ssh: #port 3200
+  - node2
+  - node4
+  - node5
+nagios_clients_http: #port 80, 443
+  - node2
+  - node4
+  - node5
+nagios_clients_zabbix: #port 10050
+  - node2
+  - node4
+  - node5
+nagios_clients_mysql: #port 3306
+  - node2
+  - node4
+  - node5
+nagios_clients_tor: #port 8443, 9050
+  - node4
+nagios_clients_mail: #port 25, 587, 143, 993
+  - node2
+  - node4
+  - node5
+
+# MYSQL
+#10.0.34v1 for openbsd 6.3
+#10.0.32v1 for openbsd 6.2
+mysql_version: "10.0.34v1"
+
+# MYSQL replication related
+mysql_root_pass: "supersecret"
+mysql_repl_pass: "supersecret"
+mysql_is_master: false
+mysql_is_slave: false
+mysql_master_host: ""
+mysql_repl_dbs:
+  - zabbix
+
+#1.2.5p4 for openbsd 6.2 / 6.3
+py_mysql_version: "1.2.5p4"

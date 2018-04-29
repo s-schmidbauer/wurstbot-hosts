@@ -3,15 +3,10 @@
   # BASIS SETUP
   #######################################
 - name: basic system setup
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    # don't include a trailing slash!
-    install_url: https://ftp.bit.nl/pub/OpenBSD
-    dns_name: "node4.wurstbot.com"
 
   tasks:
   - name: set install url
@@ -50,13 +45,10 @@
   # UPDATE SYSTEM AND PACKAGES
   #######################################
 - name: install system updates
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-      update_mode: false
 
   tasks:
     - name: list available system updates
@@ -76,7 +68,7 @@
   # SYSCTL
   #######################################
 - name: configure sysctl
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
@@ -96,7 +88,7 @@
   # DOAS
   #######################################
 - name: configure doas
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
@@ -115,7 +107,7 @@
   # PF
   #######################################
 - name: configure pf
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
@@ -164,13 +156,10 @@
   # SSH
   #######################################
 - name: configure ssh
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    ssh_port: 3200
 
   tasks:
   - name: ssh - start
@@ -202,24 +191,10 @@
   # NRPE
   #######################################
 - name: configure nrpe
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    #2.15p8-no_ssl or 2.15p8 for openbsd 6.3
-    #2.15p7-no_ssl or 2.15p7 for openbsd 6.2
-    nrpe_version: 2.15p8-no_ssl
-    nrpe_port: 5666
-    nagios_servers: 127.0.0.1,93.170.104.52,93.171.216.20,45.32.185.50,45.32.152.181
-    nrpe_commands:
-      - "command[check_disk_root]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /"
-      - "command[check_disk_home]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /home"
-      - "command[check_disk_usr]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /usr"
-      - "command[check_disk_usr_local]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /usr/local"
-      - "command[check_disk_tmp]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /tmp"
-      - "command[check_disk_var]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /var"
 
   tasks:
   - name: nrpe - install
@@ -267,16 +242,10 @@
   # PHP-FPM
   #######################################
 - name: configure php-fpm
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    # 5.6.34 or 7.0.28 for openbsd 6.3
-    # 5.6.31 or 7.0.23 for openbsd 6.2
-    php_version: "5.6.34"
-    php_port: 6060
 
   tasks:
   - name: php-fpm - install php and modules
@@ -338,7 +307,7 @@
   # SLOWCGI
   #######################################
 - name: configure slowcgi
-  hosts: node5
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
@@ -355,15 +324,10 @@
   # HTTPD
   #######################################
 - name: configure httpd
-  hosts: node5
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    #httpd_vhost: "wurstbot.com"
-    dns_name: node4.wurstbot.com
-    php_port: 6060
 
   tasks:
   - name: httpd - configure httpd
@@ -422,14 +386,10 @@
   # ACME
   #######################################
 - name: configure acme
-  hosts: node5
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    dns_name: "node5.wurstbot.com"
-    dns_san_names: ""
 
   tasks:
   - name: acme - configure acme
@@ -491,43 +451,10 @@
   # NAGIOS
   #######################################
 - name: configure nagios
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    php_port: 6060
-    nagios_server: true
-    # 4.3.1p0 on openbsd 6.3
-    # 4.3.1 on openbsd 6.2
-    # 4.3.1 nagios web on openbsd 6.2 / 6.3
-    nagios_version: "4.3.1p0"
-    nagios_web_version: "4.3.1"
-    dns_name: nagios.wurstbot.com
-
-    # replication related
-    nagios_password: supersecret
-    nagios_clients:
-      - node2
-      - node4
-      - node5
-    nagios_clients_ssh: #port 3200
-      - node2
-      - node4
-      - node5
-    nagios_clients_http: #port 80, 443
-      - node2
-      - node4
-      - node5
-    nagios_clients_zabbix: #port 10050
-      - node4
-      - node5
-    nagios_clients_mysql: #port 3306
-      - node4
-      - node5
-    nagios_clients_tor: #port 8443, 9050
-      - node2
 
   tasks:
   - name: nagios - install
@@ -566,6 +493,22 @@
             command_name    check_nrpe
             command_line    $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
         }
+
+        define command{
+                command_name    check_imaps
+                command_line    $USER1$/check_imap -p 993 -S -H $HOSTADDRESS$ $ARG1$
+                }
+
+        define command{
+                command_name    check_smtps
+                command_line    $USER1$/check_smtp -p 587 -S -H $HOSTADDRESS$ $ARG1$
+                }
+
+        define command{
+                command_name    check_ssmtp
+                command_line    $USER1$/check_ssmtp -p 465 -H $HOSTADDRESS$ $ARG1$
+                }
+
       create: true
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios commands"
@@ -608,21 +551,21 @@
         # DISK CHECKS
         ############
         define service{
-                use                             local-service         ; Name of service template to use
+                use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             PING
                 check_command                   check_ping!100.0,20%!500.0,60%
                 notifications_enabled           1
         }
         define service{
-                use                             local-service         ; Name of service template to use
+                use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Disk /
                 check_command                   check_nrpe!check_disk_root
                 notifications_enabled           1
         }
         define service {
-                use                             local-service         ; Name of service template to use
+                use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Disk /home
                 check_command                   check_nrpe!check_disk_home
@@ -664,35 +607,35 @@
                 service_description             SSH
                 check_command                   check_tcp!3200
                 notifications_enabled           1
-                }
+        }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mysql |join(', ') }}
                 service_description             mysql
                 check_command                   check_tcp!3306
                 notifications_enabled           1
-                }
+        }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_zabbix |join(', ') }}
                 service_description             zabbix server
                 check_command                   check_tcp!10050
                 notifications_enabled           1
-                }
+        }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_tor |join(', ') }}
                 service_description             Tor SocksPort
                 check_command                   check_tcp!9050
                 notifications_enabled           1
-                }
+        }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_tor |join(', ') }}
                 service_description             Tor OrPort
                 check_command                   check_tcp!8443
                 notifications_enabled           1
-                }
+        }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ') }}
@@ -705,6 +648,49 @@
                 host_name                       {{ nagios_clients_http |join(', ') }}
                 service_description             HTTPS
                 check_command                   check_tcp!443
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             IMAP
+                check_command                   check_imap
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             IMAPS
+                check_command                   check_imaps
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             SMTP
+                check_command                   check_smtp
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             SMTPS
+                check_command                   check_smtps
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             SSMTP
+                check_command                   check_ssmtp
+                notifications_enabled           1
+        }
+        # WEB CHECKS
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP basic vhost
+                check_command                   check_http!{{ dns_name }}
                 notifications_enabled           1
         }
 
@@ -740,7 +726,7 @@
     blockinfile:
       dest: /etc/httpd.conf
       block: |
-        server {{ dns_name }} {
+        server {{ nagios_dns_name }} {
            listen on egress port 80
            listen on lo port 80
            root "/nagios"
@@ -786,30 +772,10 @@
   # MariaDB
   #######################################
 - name: configure mysql
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
-
-  vars:
-    #10.0.34v1 for openbsd 6.3
-    #10.0.32v1 for openbsd 6.2
-    mysql_version: "10.0.34v1"
-
-    # replication related
-    mysql_root_pass: "supersecret"
-    mysql_repl_pass: "supersecret"
-    mysql_is_master: false
-    mysql_is_slave: true
-    mysql_master_host: "45.32.152.181"
-    mysql_repl_dbs:
-      - zabbix
-
-    # 5.6.34 or 7.0.28 for openbsd 6.3
-    # 5.6.31 or 7.0.23 for Openbsd 6.2
-    php_version: "5.6.34"
-    #1.2.5p4 for openbsd 6.2 / 6.3
-    py_mysql_version: "1.2.5p4"
 
   tasks:
   - name: mysql - install

@@ -344,7 +344,7 @@
         server {{ dns_name }} {
            listen on egress port 80
            listen on lo port 80
-           root "/{{ dns_name }}"
+           root "/"
 
            listen on egress tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
@@ -800,8 +800,15 @@
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ')  }}
-                service_description             HTTP basic vhost
-                check_command                   check_http!{{ dns_name }}
+                service_description             HTTP basic vhost HTML
+                check_command                   check_http!{{ dns_name }}/index.html
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP basic vhost PHP
+                check_command                   check_http!{{ dns_name }}/index.php
                 notifications_enabled           1
         }
 

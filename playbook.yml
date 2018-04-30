@@ -305,7 +305,7 @@
 
   - name: php-fpm - create test file
     lineinfile:
-      dest: /var/www/test.php
+      dest: /var/www/index.php
       line: <?php phpinfo(); ?>
       state: present
       create: true
@@ -391,7 +391,7 @@
 
   - name: httpd - create test file
     lineinfile:
-      dest: /var/www/test.html
+      dest: /var/www/index.html
       line: <html><p>{{ dns_name }}</p></html>
       state: present
       create: true

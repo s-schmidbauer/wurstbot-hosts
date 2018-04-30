@@ -512,11 +512,13 @@
 
           acl home src 31.201.195.130
           acl work src 84.207.225.37
+          acl work mg 62.195.130.48
 
           acl SSL_ports port 443
 
           http_access allow home
           http_access allow work
+          http_access allow mg
           http_access deny all
 
           cache_mem {{ squid_cache_mem }} MB

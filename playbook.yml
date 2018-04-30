@@ -902,11 +902,12 @@
       # on bsd
       - py-mysql-{{ py_mysql_version }}
       # - python-mysqldb on linux
+    register: mysql_install_results
 
-  # - name: mysql - install_db
-  #   shell: mysql_install_db
-  #   run_once: true
-  #   ignore_errors: true
+  - name: mysql - install_db
+    shell: mysql_install_db
+    ignore_errors: true
+    when: mysql_install_results|changed
 
   - name: mysql - configure .my.cnf
     blockinfile:

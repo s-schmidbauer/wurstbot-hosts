@@ -83,7 +83,7 @@ mysql_root_pass: "supersecret"
 mysql_repl_pass: "supersecret"
 mysql_is_master: false
 mysql_is_slave: true
-mysql_master_host: ""
+mysql_master_host: "45.32.152.181"
 mysql_repl_dbs:
   - zabbix
 

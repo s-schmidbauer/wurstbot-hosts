@@ -548,6 +548,86 @@
 
 
   #######################################
+  # ZABBIX SERVER
+  #######################################
+- name: configure zabbix server
+  hosts: node4
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: zabbix server - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - zabbix-server
+      - zabbix-web
+      - php-gd
+      - php-mysqli
+
+  - name: zabbix - configure php.ini
+    blockinfile:
+      dest: /etc/php-5.6.ini
+      block: |
+          max_execution_time 300
+          memory_limit 128M
+          post_max_size 16M
+          upload_max_filesize 2M
+          max_input_time 300
+          always_populate_raw_post_data -1
+      backup: yes
+      state: present
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix php options"
+    register: zabbix_php_results
+
+  - name: zabbix - create db
+    mysql_db:
+      name: zabbix
+      encoding: utf8
+      collation: utf8_bin
+      state: present
+      login_user: {{ mysql_user }}
+      login_password: {{ mysql_root_pass }}
+
+  - name: zabbix - grant permissions to zabbix user
+    mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password={{ mysql_root_pass }} state=present
+
+  - name: zabbix - download source package for db dumps
+    get_url:
+      url: https://sourceforge.net/projects/zabbix/files/ZABBIX%20Latest%20Stable/{{ zabbix_version }}/zabbix-{{ zabbix_version }}.tar.gz/download
+      dest: /tmp/zabbix-{{ zabbix_version }}.tar.gz
+      mode: 0440
+    when: zabbix_install_mode == True
+
+  - name: zabbix - unpack source package
+    unarchive:
+      src: /tmp/zabbix-{{ zabbix_version }}.tar.gz
+      dest: /tmp/zabbix-{{ zabbix_version }}
+      remote_src: yes
+    when: zabbix_install_mode == True
+
+  - name: zabbix - import databases
+    mysql_db:
+      name: zabbix
+      login_user: root
+      login_password: {{ mysql_root_pass }}
+      target: /tmp/zabbix-{{ zabbix_version }}/database/mysql/{{ item }}.sql
+      state: import
+    with items:
+      - schema
+      - images
+      - data
+    when: zabbix_install_mode == True
+
+  - name: zabbix - started
+    service: name=zabbix state=started
+
+  - name: zabbix - enable
+    shell: rcctl enable zabbix
+
+
+
+  #######################################
   # NAGIOS
   #######################################
 - name: configure nagios

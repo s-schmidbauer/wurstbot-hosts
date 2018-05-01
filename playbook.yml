@@ -661,6 +661,43 @@
     blockinfile:
       dest: /etc/nagios/objects/localhost.cfg
       block: |
+        # LOAD CHECKS
+        ############
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Users check
+                check_command                   check_nrpe!check_users
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Load check
+                check_command                   check_nrpe!check_load
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Disk check
+                check_command                   check_nrpe!check_disk
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Zombie procs check
+                check_command                   check_nrpe!check_zombie_procs
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Total procs check
+                check_command                   check_nrpe!check_total_procs
+                notifications_enabled           1
+        }
         # DISK CHECKS
         ############
         define service{

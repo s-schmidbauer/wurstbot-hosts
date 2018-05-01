@@ -23,6 +23,14 @@ php_port: 6060
 nrpe_version: 2.15p8-no_ssl
 nrpe_port: 5666
 nagios_servers: 127.0.0.1,93.170.104.52,93.171.216.20,45.32.185.50,45.32.152.181
+
+# hard coded
+# command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10
+# command[check_load]=/usr/local/libexec/nagios/check_load -w 15,10,5 -c 30,25,20
+# command[check_disk]=/usr/local/libexec/nagios/check_disk -w 20% -c 10%
+# command[check_zombie_procs]=/usr/local/libexec/nagios/check_procs -w 5 -c 10 -s Z
+# command[check_total_procs]=/usr/local/libexec/nagios/check_procs -w 150 -c 200
+
 nrpe_commands:
   - "command[check_disk_root]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /"
   - "command[check_disk_home]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /home"

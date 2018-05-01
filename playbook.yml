@@ -419,15 +419,6 @@
       backup: yes
       create: true
 
-  # - name: acme - check config
-  #   command: /usr/sbin/acme-client -n
-  #   register: acme_result
-  #   ignore_errors: yes
-  #
-  # - name: acme - handle failure
-  #   action: fail msg="acme-client.conf check failed."
-  #   when: acme_result|failed
-
   - name: acme - create new key and cert if expired
     shell: /usr/sbin/acme-client -vAD {{ dns_name }}
     register: acme_renew_result
@@ -560,7 +551,7 @@
   - name: zabbix server - install
     openbsd_pkg: name={{ item }} state=present
     with_items:
-      - zabbix-server
+      - zabbix-server-{{ zabbix_version}}-mysql
       - zabbix-web
       - php-gd
       - php-mysqli
@@ -577,7 +568,7 @@
           always_populate_raw_post_data -1
       backup: yes
       state: present
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix php options"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix php options"
     register: zabbix_php_results
 
   - name: zabbix - create db
@@ -585,12 +576,14 @@
       name: zabbix
       encoding: utf8
       collation: utf8_bin
+      login_user: root
+      login_password: "{{ mysql_root_pass }}"
       state: present
-      login_user: {{ mysql_user }}
-      login_password: {{ mysql_root_pass }}
+    register: zabbix_create_db_results
+    when: zabbix_install_mode == True
 
   - name: zabbix - grant permissions to zabbix user
-    mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password={{ mysql_root_pass }} state=present
+    mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password="{{ mysql_root_pass }}" state=present
 
   - name: zabbix - download source package for db dumps
     get_url:
@@ -599,32 +592,132 @@
       mode: 0440
     when: zabbix_install_mode == True
 
-  - name: zabbix - unpack source package
-    unarchive:
-      src: /tmp/zabbix-{{ zabbix_version }}.tar.gz
-      dest: /tmp/zabbix-{{ zabbix_version }}
-      remote_src: yes
+  - name: zabbix - make source directory
+    file:
+      path: /tmp/zabbix-{{ zabbix_version }}
+      state: directory
     when: zabbix_install_mode == True
+
+  # - name: zabbix - unpack source package
+  #   unarchive:
+  #     src: /tmp/zabbix-{{ zabbix_version }}.tar.gz
+  #     dest: /tmp/zabbix-{{ zabbix_version }}
+  #     remote_src: yes
+  #   when: zabbix_install_mode == True
+
+  - name: zabbix - unpack source package
+    shell: tar xfz /tmp/zabbix-{{ zabbix_version }}.tar.gz -C /tmp/
+    when: zabbix_install_mode == True and zabbix_create_db_results|changed
 
   - name: zabbix - import databases
     mysql_db:
       name: zabbix
       login_user: root
-      login_password: {{ mysql_root_pass }}
+      login_password: "{{ mysql_root_pass }}"
       target: /tmp/zabbix-{{ zabbix_version }}/database/mysql/{{ item }}.sql
       state: import
-    with items:
+    with_items:
       - schema
       - images
       - data
-    when: zabbix_install_mode == True
+    when: zabbix_install_mode == True and zabbix_create_db_results|changed
+    ignore_errors: true
+
+  - name: zabbix - create log dir
+    file:
+      path: /var/log/zabbix/
+      owner: _zabbix
+      group: _zabbix
+      state: directory
+
+  - name: zabbix - create log files
+    file:
+      path: /var/log/zabbix/{{ item }}.log
+      owner: _zabbix
+      group: _zabbix
+      state: touch
+    with_items:
+      - zabbix_server
+      - zabbix_proxy
+      - zabbix_agent
+    register: zabbix_log_results
+
+  - name: zabbix - create pid files
+    file:
+      path: /var/run/{{ item }}.pid
+      owner: _zabbix
+      group: _zabbix
+      state: touch
+    with_items:
+      - zabbix_server
+      - zabbix_proxy
+      - zabbix_agent
+    register: zabbix_pid_results
+
+  - name: zabbix - config zabbix server
+    blockinfile:
+      dest: /etc/zabbix/zabbix_server.conf
+      block: |
+          PidFile=/var/run/zabbix_server.pid
+          LogType=file
+          LogFile=/var/log/zabbix/zabbix_server.log
+          DBHost=localhost
+          DBName=zabbix
+          DBUser={{ zabbix_db_user }}
+          DBPassword={{ zabbix_db_pass }}
+          # DBSocket=/tmp/mysql.sock
+          DBPort=3306
+      state: present
+      create: true
+      backup: yes
+    when: zabbix_log_results is succeeded and zabbix_pid_results is succeeded
+    register: zabbix_config_results
 
   - name: zabbix - started
-    service: name=zabbix state=started
+    service: name=zabbix_server state=started
 
   - name: zabbix - enable
-    shell: rcctl enable zabbix
+    shell: rcctl enable zabbix_server
 
+  - name: zabbix - make chrooted php directory
+    file:
+      path: /var/www/etc/php-5.6
+      state: directory
+    when: zabbix_install_mode == True
+
+  - name: zabbix - copy php extensions to chrooted php directory
+    shell: cp /etc/php-5.6.sample/* /var/www/etc/php-5.6/
+    when: zabbix_install_mode == True
+
+  # REALLY REQUIRED OR IS COPY FILES ENOUGH?
+  # - name: zabbix - configure php.ini
+  #   blockinfile:
+  #     dest: /var/www/etc/php.ini
+  #     block: |
+  #         extension=gd.so
+  #         extension=mysql.so
+  #         extension=mysqli.so
+  #         extension=pspell.so
+  #         extension=mcrypt.so
+  #         extension=suhosin.so
+  #         extension=zip.so
+  #         extension=zabbix.so
+  #     backup: yes
+  #     state: present
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix php options"
+  #   register: zabbix_php_results
+  #   when: zabbix_install_mode == True
+
+  - name: zabbix - configure web interface
+    blockinfile:
+      dest: /var/www/zabbix/conf/zabbix.conf.php
+      block: |
+          # CONFIG GOES HERE
+      backup: yes
+      state: present
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix web config"
+    register: zabbix_php_results
+    when: zabbix_install_mode == True
 
 
   #######################################
@@ -703,6 +796,14 @@
         define command{
               command_name      check_load
               command_line      $USER1$/check_load -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p $USER3$
+        }
+        define command{
+              command_name      check_https_url
+              command_line      $USER1$/check_http --ssl -H '$HOSTADDRESS$' -u '$ARG1$'
+        }
+        define command{
+              command_name      check_https_cert_expiry
+              command_line      $USER1$/check_http --ssl -H '$HOSTADDRESS$' -u '$ARG2$' -C 30
         }
 
       create: true
@@ -930,7 +1031,20 @@
                 check_command                   check_http!{{ dns_name }}/index.php
                 notifications_enabled           1
         }
-
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTPS basic vhost HTML
+                check_command                   check_https_url!{{ dns_name }}
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTPS cert expiry in next 30 days
+                check_command                   check_https_cert_expiry!{{ dns_name }}
+                notifications_enabled           1
+        }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true
       backup: yes

@@ -49,6 +49,7 @@ zabbix_version: 3.4.7
 zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
 zabbix_install_mode: true
+zabbix_dns_name: zabbix.wurstbot.com
 
 # NAGIOS
 nagios_server: true

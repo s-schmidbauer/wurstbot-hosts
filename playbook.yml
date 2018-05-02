@@ -542,7 +542,7 @@
   # ZABBIX SERVER
   #######################################
 - name: configure zabbix server
-  hosts: node4
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
@@ -708,16 +708,60 @@
   #   register: zabbix_php_results
   #   when: zabbix_install_mode == True
 
+  # Use 127.0.0.1 over localhost to avoid issues
   - name: zabbix - configure web interface
     blockinfile:
       dest: /var/www/zabbix/conf/zabbix.conf.php
       block: |
-          # CONFIG GOES HERE
+          $DB['TYPE']       = 'MYSQL';
+          $DB['SERVER']     = '127.0.0.1';
+          $DB['PORT']       = '3306';
+          $DB['DATABASE']   = 'zabbix';
+          $DB['USER']       = '{{ zabbix_db_user }}';
+          $DB['PASSWORD']   = '{{ zabbix_db_pass }}';
+          $ZBX_SERVER       = '127.0.0.1';
+          $ZBX_SERVER_PORT  = '10051';
+          $ZBX_SERVER_NAME  = '{{ dns_name }} zabbix';
       backup: yes
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix web config"
-    register: zabbix_php_results
+    register: zabbix_web_config_results
     when: zabbix_install_mode == True
+
+  - name: zabbix - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ zabbix_dns_name }} {
+           listen on egress port 80
+           listen on lo port 80
+           root "/zabbix"
+
+            directory {
+                    index "index.php"
+            }
+
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix vhost"
+
+  - name: zabbix - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+    when: zabbix_web_config_results|changed
+
+  - name: zabbix - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: zabbix - reload httpd when config changed
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded
 
 
   #######################################

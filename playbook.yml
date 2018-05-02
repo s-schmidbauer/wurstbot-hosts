@@ -689,24 +689,12 @@
     shell: cp /etc/php-5.6.sample/* /var/www/etc/php-5.6/
     when: zabbix_install_mode == True
 
-  # REALLY REQUIRED OR IS COPY FILES ENOUGH?
-  # - name: zabbix - configure php.ini
-  #   blockinfile:
-  #     dest: /var/www/etc/php.ini
-  #     block: |
-  #         extension=gd.so
-  #         extension=mysql.so
-  #         extension=mysqli.so
-  #         extension=pspell.so
-  #         extension=mcrypt.so
-  #         extension=suhosin.so
-  #         extension=zip.so
-  #         extension=zabbix.so
-  #     backup: yes
-  #     state: present
-  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix php options"
-  #   register: zabbix_php_results
-  #   when: zabbix_install_mode == True
+  - name: zabbix - copy php.ini to chrooted directory
+    copy:
+      src: /etc/php-5.6.ini
+      dest: /var/www/etc/php-5.6.ini
+      remote_src: yes
+    when: zabbix_install_mode == True
 
   # Use 127.0.0.1 over localhost to avoid issues
   - name: zabbix - configure web interface
@@ -721,7 +709,7 @@
           $DB['PASSWORD']   = '{{ zabbix_db_pass }}';
           $ZBX_SERVER       = '127.0.0.1';
           $ZBX_SERVER_PORT  = '10051';
-          $ZBX_SERVER_NAME  = '{{ dns_name }} zabbix';
+          $ZBX_SERVER_NAME  = '{{ dns_name}}';
       backup: yes
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix web config"

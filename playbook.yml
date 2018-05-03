@@ -41,6 +41,16 @@
       special_time: daily
       job: "ocspcheck -vN -o /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem"
 
+  - name: cron - create zabbix pid files and restart zabbix at reboot
+    cron:
+      name: "create zabbix pid files"
+      special_time: reboot
+      job: "touch /var/run/{{ item }}.pid ; chown _zabbix:_zabbix /var/run/{{ item }}.pid ; rcctl restart {{ item }}"
+    with_items:
+      - zabbix_agentd
+      - zabbix_server
+      - zabbix_proxy
+
   #######################################
   # UPDATE SYSTEM AND PACKAGES
   #######################################
@@ -78,9 +88,11 @@
     blockinfile:
       dest: /etc/sysctl.conf
       block: |
-        kern.shminfo.shmmax=134217728
-        kern.shminfo.shmall=524288
-        kern.shminfo.shmmni=240
+        kern.shminfo.shmmax=134217728         # max size of shared memory segment (bytes)
+        kern.shminfo.shmall=524288            # total amount of sharedmemory available (pages)
+        kern.shminfo.shmmni=240               # max number of sharedmemory segments system-wide
+        # for zabbix agent, double semaphore count - fixes cannot open log: cannot create semaphore set
+        kern.seminfo.semmns=120               # max number ofsemaphores system-wide
       create: true
       backup: yes
 
@@ -539,6 +551,82 @@
 
 
   #######################################
+  # ZABBIX AGENT
+  #######################################
+- name: configure zabbix zabbix
+  hosts: node2, node4, node5
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: zabbix agent - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - zabbix-agent-{{ zabbix_version }}
+
+  # configure zabbix prerequisites
+  - name: zabbix - create log dir
+    file:
+      path: /var/log/zabbix/
+      owner: _zabbix
+      group: _zabbix
+      state: directory
+
+  - name: zabbix - create log files
+    file:
+      path: /var/log/zabbix/{{ item }}.log
+      owner: _zabbix
+      group: _zabbix
+      state: touch
+    with_items:
+      - zabbix_server
+      - zabbix_proxy
+      - zabbix_agentd
+    register: zabbix_log_results
+
+  - name: zabbix - create pid files
+    file:
+      path: /var/run/{{ item }}.pid
+      owner: _zabbix
+      group: _zabbix
+      state: touch
+    with_items:
+      - zabbix_server
+      - zabbix_proxy
+      - zabbix_agentd
+    register: zabbix_pid_results
+
+  - name: zabbix agent - config zabbix agent
+    blockinfile:
+      dest: /etc/zabbix/zabbix_agentd.conf
+      block: |
+          PidFile=/var/run/zabbix_agentd.pid
+          LogType=file
+          LogFile=/var/log/zabbix/zabbix_agentd.log
+          LogFileSize=10
+          EnableRemoteCommands=1
+          LogRemoteCommands=1
+          Server={{ zabbix_servers }}
+          ServerActive={{ zabbix_servers }}
+          ListenPort=10050
+          Hostname={{ dns_name }}
+          ListenIP=0.0.0.0
+      state: present
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix agent config"
+      create: true
+      backup: yes
+    when: zabbix_log_results is succeeded and zabbix_pid_results is succeeded
+    register: zabbix_agent_config_results
+
+  - name: zabbix agent - started
+    service: name=zabbix_agentd state=started
+
+  - name: zabbix agent - enable
+    shell: rcctl enable zabbix_agentd
+
+
+  #######################################
   # ZABBIX SERVER
   #######################################
 - name: configure zabbix server
@@ -623,37 +711,6 @@
     when: zabbix_install_mode == True and zabbix_create_db_results|changed
     ignore_errors: true
 
-  - name: zabbix - create log dir
-    file:
-      path: /var/log/zabbix/
-      owner: _zabbix
-      group: _zabbix
-      state: directory
-
-  - name: zabbix - create log files
-    file:
-      path: /var/log/zabbix/{{ item }}.log
-      owner: _zabbix
-      group: _zabbix
-      state: touch
-    with_items:
-      - zabbix_server
-      - zabbix_proxy
-      - zabbix_agent
-    register: zabbix_log_results
-
-  - name: zabbix - create pid files
-    file:
-      path: /var/run/{{ item }}.pid
-      owner: _zabbix
-      group: _zabbix
-      state: touch
-    with_items:
-      - zabbix_server
-      - zabbix_proxy
-      - zabbix_agent
-    register: zabbix_pid_results
-
   - name: zabbix - config zabbix server
     blockinfile:
       dest: /etc/zabbix/zabbix_server.conf
@@ -668,10 +725,11 @@
           # DBSocket=/tmp/mysql.sock
           DBPort=3306
       state: present
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix server config"
       create: true
       backup: yes
     when: zabbix_log_results is succeeded and zabbix_pid_results is succeeded
-    register: zabbix_config_results
+    register: zabbix_server_config_results
 
   - name: zabbix - started
     service: name=zabbix_server state=started
@@ -835,7 +893,7 @@
         }
         define command{
               command_name      check_https_cert_expiry
-              command_line      $USER1$/check_http --ssl -H '$HOSTADDRESS$' -u '$ARG2$' -C 30
+              command_line      $USER1$/check_http --ssl -H '$HOSTADDRESS$' -u '$ARG1$' -C 30
         }
 
       create: true

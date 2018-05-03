@@ -50,6 +50,7 @@ zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
 zabbix_install_mode: true
 zabbix_dns_name: zabbix.wurstbot.com
+zabbix_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
 
 # NAGIOS
 nagios_server: true

@@ -4,6 +4,7 @@
 # BASE
 install_url: https://ftp.bit.nl/pub/OpenBSD
 dns_name: node5.wurstbot.com
+node_number: 5
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
@@ -22,7 +23,7 @@ php_port: 6060
 #2.15p7-no_ssl or 2.15p7 for openbsd 6.2
 nrpe_version: 2.15p7-no_ssl
 nrpe_port: 5666
-nagios_servers: 127.0.0.1,93.170.104.52,93.171.216.20,45.32.185.50,45.32.152.181
+nagios_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
 
 # hard coded
 # command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10
@@ -51,6 +52,9 @@ zabbix_db_pass: supersecret
 zabbix_install_mode: true
 zabbix_dns_name: zabbix.wurstbot.com
 zabbix_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
+
+# SQUID
+squid_cache_mem: 256
 
 # NAGIOS
 nagios_server: true

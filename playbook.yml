@@ -41,15 +41,23 @@
       special_time: daily
       job: "ocspcheck -vN -o /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem"
 
-  - name: cron - create zabbix pid files and restart zabbix at reboot
+  - name: cron - create zabbix agentd pid files and restart zabbix agent at reboot
     cron:
-      name: "create zabbix pid files"
+      name: "create zabbix agent pid files"
       special_time: reboot
-      job: "touch /var/run/{{ item }}.pid ; chown _zabbix:_zabbix /var/run/{{ item }}.pid ; rcctl restart {{ item }}"
-    with_items:
-      - zabbix_agentd
-      - zabbix_server
-      - zabbix_proxy
+      job: "touch /var/run/zabbix_agentd.pid ; chown _zabbix:_zabbix /var/run/zabbix_agentd.pid ; rcctl restart zabbix_agentd"
+
+  - name: cron - create zabbix server pid files and restart zabbix server at reboot
+    cron:
+      name: "create zabbix server pid files"
+      special_time: reboot
+      job: "touch /var/run/zabbix_server.pid ; chown _zabbix:_zabbix /var/run/zabbix_server.pid ; rcctl restart zabbix_server"
+
+  - name: cron - create zabbix proxy pid files and restart zabbix proxy at reboot
+    cron:
+      name: "create zabbix proxy pid files"
+      special_time: reboot
+      job: "touch /var/run/zabbix_proxy.pid ; chown _zabbix:_zabbix /var/run/zabbix_proxy.pid ; rcctl restart zabbix_proxy"
 
   #######################################
   # UPDATE SYSTEM AND PACKAGES
@@ -468,7 +476,7 @@
   # SQUID
   #######################################
 - name: configure squid
-  hosts: node2
+  hosts: node2, node4, node5
   user: admin
   become: true
   become_method: doas
@@ -779,6 +787,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ zabbix_dns_name }} {
+           alias zabbix{{ node_number }}.wurstbot.com
            listen on egress port 80
            listen on lo port 80
            root "/zabbix"
@@ -1164,6 +1173,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ nagios_dns_name }} {
+           alias nagios{{ node_number }}.wurstbot.com
            listen on egress port 80
            listen on lo port 80
            root "/nagios"

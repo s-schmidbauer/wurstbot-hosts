@@ -11,11 +11,35 @@
   tasks:
   - name: set install url
     lineinfile:
-      dest=/etc/installurl
-      backup=yes
-      line="{{ install_url }}"
-      state=present
-      create=True
+      dest: /etc/installurl
+      backup: yes
+      line: "{{ install_url }}"
+      state: present
+      create: True
+
+  - name: set default profile
+    blockinfile:
+      dest: /etc/profile
+      backup: yes
+      block: |
+        HISTFILE=$HOME/.history
+        HISTSIZE=500
+        PATH=$PATH:/usr/local/bin:/usr/local/sbin
+      state: present
+      create: True
+
+  - name: forward root mails to admin
+    lineinfile:
+      dest: /etc/mail/aliases
+      backup: yes
+      line: "root: {{ admin_email }}"
+      state: present
+      create: True
+    register: admin_email_result
+
+  - name: activate forward root mails change
+    shell: newaliases
+    when: admin_email_result|changed
 
   - name: cron - system patches
     cron:
@@ -101,6 +125,8 @@
         kern.shminfo.shmmni=240               # max number of sharedmemory segments system-wide
         # for zabbix agent, double semaphore count - fixes cannot open log: cannot create semaphore set
         kern.seminfo.semmns=120               # max number ofsemaphores system-wide
+        # reboot automatically after kernel panic
+        ddb.panic=0
       create: true
       backup: yes
 
@@ -201,6 +227,7 @@
         Port {{ ssh_port }}
         PermitRootLogin yes
         PasswordAuthentication yes
+        UseDNS no
       backup: yes
       validate: "/usr/sbin/sshd -T -f %s"
 

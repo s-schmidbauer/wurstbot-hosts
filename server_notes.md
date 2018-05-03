@@ -918,6 +918,32 @@ smtpctl monitor
 tail -f /var/log/maillog
 
 
+full config file:
+
+table aliases file:/etc/mail/aliases
+table domains file:/etc/mail/domains
+
+pki node5 certificate  "/etc/ssl/node5.wurstbot.com.crt"
+pki node5 key          "/etc/ssl/private/node5.wurstbot.com.key"
+table creds file:/etc/mail/creds
+
+# To accept external mail, replace with: listen on all
+#
+listen on all port 25 tls pki node5 auth-optional <creds>
+listen on all port 587 tls-require pki node5 auth-optional <creds>
+listen on all port 465 smtps pki node5 auth-optional <creds>
+
+# Uncomment the following to accept external mail for domain "wurstbot.com"
+#
+accept from any for domain <domains> alias <aliases> deliver to mbox
+accept for local alias <aliases> deliver to mbox
+accept from local for any relay
+
+#deliver to dovecot lmtp
+#accept from local for local alias <aliases> deliver to lmtp "/var/dovecot/lmtp" rcpt-to
+#accept from any for domain <domains> virtual <virtuals> deliver to lmtp /var/dovecot/lmtp" rcpt-to
+
+
 # DOVECOT - /etc/dovecot/dovecot.conf
 ------------------------------
 ------------------------------

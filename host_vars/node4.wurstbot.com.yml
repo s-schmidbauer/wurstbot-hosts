@@ -5,6 +5,7 @@
 install_url: https://ftp.fau.de/pub/OpenBSD
 dns_name: node4.wurstbot.com
 node_number: 4
+admin_email: s.schmidbauer@gmail.com
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false

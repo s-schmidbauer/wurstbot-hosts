@@ -5,6 +5,7 @@
 install_url: https://ftp.fsn.hu/pub/OpenBSD
 dns_name: node2.wurstbot.com
 node_number: 2
+admin_email: s.schmidbauer@gmail.com
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false

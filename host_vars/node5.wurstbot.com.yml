@@ -5,6 +5,7 @@
 install_url: https://ftp.bit.nl/pub/OpenBSD
 dns_name: node5.wurstbot.com
 node_number: 5
+admin_email: s.schmidbauer@gmail.com
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false

@@ -1,6 +1,6 @@
 [node2]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
 [node4]
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
 [node5]
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa

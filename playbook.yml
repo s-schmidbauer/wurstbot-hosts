@@ -83,6 +83,8 @@
       special_time: reboot
       job: "touch /var/run/zabbix_proxy.pid ; chown _zabbix:_zabbix /var/run/zabbix_proxy.pid ; rcctl restart zabbix_proxy"
 
+
+
   #######################################
   # UPDATE SYSTEM AND PACKAGES
   #######################################
@@ -105,6 +107,11 @@
       shell: pkg_add -u
       register: package_update_results
       when: update_mode==True
+
+    - name: nrpe - install extra packages
+      openbsd_pkg: name={{ item }} state=present
+      with_items: "{{ extra_packages }}"
+      register: extra_packages_result
 
   #######################################
   # SYSCTL
@@ -393,6 +400,7 @@
            listen on lo port 80
            root "/"
 
+           listen on lo tls port 443
            listen on egress tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
@@ -458,6 +466,7 @@
       dest: /etc/acme-client.conf
       block: |
         domain "{{ dns_name }}" {
+          alternative names { {{ acme_aliases | join(' ') }} }
           domain key "/etc/ssl/private/{{ dns_name }}.key"
           domain certificate "/etc/ssl/{{ dns_name }}.crt"
           domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
@@ -819,6 +828,12 @@
            listen on lo port 80
            root "/zabbix"
 
+           listen on lo port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
             directory {
                     index "index.php"
             }
@@ -827,6 +842,10 @@
                     fastcgi socket ":{{ php_port }}"
             }
 
+            location "/.well-known/acme-challenge/*" {
+                root "/acme"
+                root strip 2
+            }
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix vhost"
@@ -1005,55 +1024,12 @@
                 check_command                   check_nrpe!check_total_procs
                 notifications_enabled           1
         }
-        # DISK CHECKS
-        ############
+
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             PING
                 check_command                   check_ping!100.0,20%!500.0,60%
-                notifications_enabled           1
-        }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients |join(', ') }}
-                service_description             Disk /
-                check_command                   check_nrpe!check_disk_root
-                notifications_enabled           1
-        }
-        define service {
-                use                             local-service
-                host_name                       {{ nagios_clients |join(', ') }}
-                service_description             Disk /home
-                check_command                   check_nrpe!check_disk_home
-                notifications_enabled           1
-        }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients |join(', ') }}
-                service_description             Disk /var
-                check_command                   check_nrpe!check_disk_var
-                notifications_enabled           1
-        }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients |join(', ') }}
-                service_description             Disk /usr
-                check_command                   check_nrpe!check_disk_usr
-                notifications_enabled           1
-        }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients |join(', ') }}
-                service_description             Disk /usr/local
-                check_command                   check_nrpe!check_disk_usr_local
-                notifications_enabled           1
-        }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients |join(', ') }}
-                service_description             Disk /tmp
-                check_command                   check_nrpe!check_disk_tmp
                 notifications_enabled           1
         }
         # TCP CHECKS
@@ -1063,6 +1039,13 @@
                 host_name                       {{ nagios_clients_ssh |join(', ') }}
                 service_description             SSH
                 check_command                   check_tcp!3200
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mysql |join(', ') }}
+                service_description             squid
+                check_command                   check_tcp!3128
                 notifications_enabled           1
         }
         define service{
@@ -1201,10 +1184,17 @@
       block: |
         server {{ nagios_dns_name }} {
            alias nagios{{ node_number }}.wurstbot.com
+
            listen on egress port 80
            listen on lo port 80
            root "/nagios"
            authenticate with ".nagioshtaccess"
+
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
             directory {
                     index "index.php"

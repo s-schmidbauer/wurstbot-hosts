@@ -6,6 +6,11 @@ install_url: https://ftp.fau.de/pub/OpenBSD
 dns_name: node4.wurstbot.com
 node_number: 4
 admin_email: s.schmidbauer@gmail.com
+extra_packages:
+  - pftop
+  - rsync-3.1.3
+  - screen-4.0.3p6
+  - unzip-6.0p11
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
@@ -42,7 +47,10 @@ nrpe_commands:
   - "command[check_disk_var]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /var"
 
 # ACME-client
-dns_san_names: ""
+acme_aliases:
+  - zabbix.wurstbot.com
+  - nagios.wurstbot.com
+  - mail.wurstbot.com
 
 # ZABBIX SERVER
 #3.4.7 for OpenBSD 6.3

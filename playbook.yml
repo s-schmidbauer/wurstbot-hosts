@@ -628,6 +628,8 @@
     blockinfile:
       dest: /etc/mail/virtuals
       block: |
+          _zabbix@wurstbot.com    root
+          _nagios@wurstbot.com    root
           zabbix@wurstbot.com     root
           nagios@wurstbot.com     root
           admin@wurstbot.com      root

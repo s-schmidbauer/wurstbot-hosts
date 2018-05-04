@@ -642,9 +642,14 @@
     shell: pass=$(echo {{ smtpd_pass }} | smtpctl encrypt) ; echo {{ admin_user }}:$pass > /etc/mail/creds
     register: smtpd_creds_results
 
+  - name: smtpd - delete existing config
+    file:
+      path: /etc/mail/smtpd.conf
+      state: absent
+
   - name: smtpd - config service
     blockinfile:
-      dest: /etc/mail/smptd.conf
+      dest: /etc/mail/smtpd.conf
       block: |
           table aliases file:/etc/mail/aliases
           table domains file:/etc/mail/domains
@@ -668,8 +673,8 @@
     # when: smtpd_aliases_results is succeeded and smtpd_domains_results is succeeded and smtpd_virtuals_results is succeeded and smtpd_creds_results is succeeded
     register: smtpd_config_results
 
-  - name: smtpd - reload
-    service: name=smtpd state=reloaded
+  - name: smtpd - restarted
+    service: name=smtpd state=restarted
     when: smtpd_config_results|changed
 
   - name: smtpd - start

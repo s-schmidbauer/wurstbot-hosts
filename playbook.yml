@@ -29,10 +29,15 @@
       create: True
 
   - name: forward root mails to admin
-    lineinfile:
+    blockinfile:
       dest: /etc/mail/aliases
       backup: yes
-      line: "root: {{ admin_email }}"
+      block: |
+        root: {{ admin_email }}
+        _nagios: {{ admin_email }}
+        nagios: {{ admin_email }}
+        _zabbix: {{ admin_email }}
+        zabbix: {{ admin_email }}
       state: present
       create: True
     register: admin_email_result
@@ -529,14 +534,14 @@
 
   - name: squid - create log dir
     file:
-      path: /var/log/squid/
+      path: /var/squid/log
       owner: _squid
       group: _squid
       state: directory
 
   - name: squid - create cache log
     file:
-      path: /var/log/squid/cache.log
+      path: /var/squid/logs/cache.log
       owner: _squid
       group: _squid
       state: touch
@@ -544,7 +549,7 @@
 
   - name: squid - create access log
     file:
-      path: /var/log/squid/access.log
+      path: /var/squid/logs/access.log
       owner: _squid
       group: _squid
       state: touch
@@ -552,14 +557,14 @@
 
   - name: squid - config service
     blockinfile:
-      dest: /etc/squid.cfg
+      dest: /etc/squid/squid.cfg
       block: |
-          access_log daemon:/var/log/access.log squid
-          cache_log daemon:/var/log/cache.log squid
+          access_log daemon:/var/squid/logs/access.log squid
+          cache_log daemon:/var/squid/logs/cache.log squid
 
           acl home src 31.201.195.130
           acl work src 84.207.225.37
-          acl work mg 62.195.130.48
+          acl mg src 62.195.130.48
 
           acl SSL_ports port 443
 
@@ -628,8 +633,6 @@
     blockinfile:
       dest: /etc/mail/virtuals
       block: |
-          _zabbix@wurstbot.com    root
-          _nagios@wurstbot.com    root
           zabbix@wurstbot.com     root
           nagios@wurstbot.com     root
           admin@wurstbot.com      root
@@ -684,6 +687,130 @@
     shell: rcctl enable smtpd
 
   #######################################
+  # DOVECOT
+  #######################################
+- name: configure dovecot
+  hosts: node2, node4, node5
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: dovecot - install
+    openbsd_pkg: name=dovecot state=present
+
+  - name: dovecot - raise file limit
+    blockinfile:
+      dest: /etc/login.conf
+      block: |
+        dovecot:\
+          :openfiles=2048:\
+          :tc=daemon:
+      state: present
+      create: true
+      backup: yes
+
+  - name: dovecot - config mail location
+    blockinfile:
+      dest: /etc/dovecot/conf.d/10-mail.conf
+      block: |
+          mail_location = mbox:~/mail:INBOX=/var/mail/%u
+      state: present
+      create: true
+      backup: yes
+    register: dovecot_config_mail_results
+
+    # required to be removed (duplicate )
+    # ssl_cert = </etc/ssl/dovecotcert.pem
+    # ssl_key = </etc/ssl/private/dovecot.pem
+  - name: dovecot - config ssl
+    blockinfile:
+      dest: /etc/dovecot/conf.d/10-ssl.conf
+      block: |
+          ssl_cert = </etc/ssl/{{ dns_name }}.crt
+          ssl_key = </etc/ssl/private/{{ dns_name }}.key
+          ssl_dh_parameters_length = 4096
+          ssl_protocols = !SSLv3 !SSLv2
+          ssl_cipher_list = AES128+EECDH:AES128+EDH
+          ssl_prefer_server_ciphers = yes
+      state: present
+      create: true
+      backup: yes
+      # validate: "dovecot -n -f %s"
+    register: dovecot_config_ssl_results
+
+  - name: dovecot - check config
+    shell: dovecot -n
+    register: dovecot_config_check
+    ignore_errors: true
+
+  - name: dovecot - restarted
+    service: name=dovecot state=restarted
+    when: dovecot_config_check is succeeded
+
+  - name: dovecot - enable
+    shell: rcctl enable dovecot
+
+#   #######################################
+#   # SPAMD
+#   #######################################
+# - name: configure spamd
+#   hosts: node2, node4, node5
+#   user: admin
+#   become: true
+#   become_method: doas
+#
+#   tasks:
+#   - name: smtpd - enable
+#     shell: rcctl enable smtpd
+#
+#   - name: spamd - config service
+#     blockinfile:
+#       dest: /etc/rc.conf.local
+#       block: |
+#           spamd_black=NO
+#           spamd_flags=-4 -G25:4:864 -C /etc/ssl/{{ dns_name }}.crt -h mail.wurstbot.com -n \"Sendmail 8.11.4/8.11.1\" -v -w1
+#           spamlogd_flags="-I -i lo0"
+#       state: present
+#       create: true
+#       backup: yes
+#       marker: "# {mark} ANSIBLE MANAGED BLOCK - spamd config"
+#     register: spamd_config_results
+#
+#   - name: spamd - config nospamd
+#     blockinfile:
+#       dest: /etc/mail/nospamd
+#       block: |
+#           127.0.0.1
+#           46.36.36.48
+#           45.32.185.50
+#           45.32.152.181
+#       state: present
+#       create: true
+#       backup: yes
+#     register: spamd_nospamd_results
+#
+#   - name: spamd - configure packet filter
+#     blockinfile:
+#       dest: /etc/pf.conf
+#       block: |
+#           table <spamd-white> persist
+#           table <nospamd> persist file "/etc/mail/nospamd"
+#           pass in on egress proto tcp from any to any port smtp rdr-to 127.0.0.1 port spamd
+#           pass in on egress proto tcp from <nospamd> to any port smtp
+#           pass in log on egress proto tcp from <spamd-white> to any port smtp
+#           pass out log on egress proto tcp to any port smtp
+#       backup: yes
+#       marker: "# {mark} ANSIBLE MANAGED BLOCK - spamd pf config"
+#       validate: "/sbin/pfctl -n -f %s"
+#
+#   - name: spamd - start
+#     service: name=spamd state=started
+#
+#   - name: spamd - enable
+#     shell: rcctl enable spamd
+
+  #######################################
   # ZABBIX AGENT
   #######################################
 - name: configure zabbix zabbix
@@ -702,6 +829,14 @@
   - name: zabbix - create log dir
     file:
       path: /var/log/zabbix/
+      owner: _zabbix
+      group: _zabbix
+      state: directory
+
+  # configure zabbix prerequisites
+  - name: zabbix - create scripts dir
+    file:
+      path: /etc/zabbix/externalscripts
       owner: _zabbix
       group: _zabbix
       state: directory
@@ -745,6 +880,7 @@
           ListenPort=10050
           Hostname={{ dns_name }}
           ListenIP=0.0.0.0
+          ExternalScripts=/etc/zabbix/externalscripts
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix agent config"
       create: true
@@ -757,7 +893,6 @@
 
   - name: zabbix agent - enable
     shell: rcctl enable zabbix_agentd
-
 
   #######################################
   # ZABBIX SERVER
@@ -1033,11 +1168,11 @@
         }
         define command{
               command_name      check_https_url
-              command_line      $USER1$/check_http --ssl -H '$HOSTADDRESS$' -u '$ARG1$'
+              command_line      $USER1$/check_http --ssl 1.2+ -H '$HOSTADDRESS$'
         }
         define command{
               command_name      check_https_cert_expiry
-              command_line      $USER1$/check_http --ssl -H '$HOSTADDRESS$' -u '$ARG1$' -C 30
+              command_line      $USER1$/check_http --ssl 1.2+ -H '$HOSTADDRESS$' -u '$ARG1$' -C 30
         }
 
       create: true
@@ -1232,8 +1367,8 @@
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ')  }}
-                service_description             HTTPS basic vhost HTML
-                check_command                   check_https_url!{{ dns_name }}
+                service_description             HTTPS basic vhost
+                check_command                   check_https_url
                 notifications_enabled           1
         }
         define service{

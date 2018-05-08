@@ -214,7 +214,7 @@
   # SSH
   #######################################
 - name: configure ssh
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas

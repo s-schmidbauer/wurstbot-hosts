@@ -3,7 +3,7 @@
   # BASIS SETUP
   #######################################
 - name: basic system setup
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -94,7 +94,7 @@
   # UPDATE SYSTEM AND PACKAGES
   #######################################
 - name: install system updates
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -122,7 +122,7 @@
   # SYSCTL
   #######################################
 - name: configure sysctl
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -146,7 +146,7 @@
   # DOAS
   #######################################
 - name: configure doas
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -165,7 +165,7 @@
   # PF
   #######################################
 - name: configure pf
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -250,7 +250,7 @@
   # NRPE
   #######################################
 - name: configure nrpe
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -390,7 +390,7 @@
   # HTTPD
   #######################################
 - name: configure httpd
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -405,11 +405,11 @@
            listen on lo port 80
            root "/"
 
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # listen on lo tls port 443
+           # listen on egress tls port 443
+           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           # tls key "/etc/ssl/private/{{ dns_name }}.key"
+           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
 
@@ -460,7 +460,7 @@
   # ACME
   #######################################
 - name: configure acme
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -603,7 +603,7 @@
   # SMTPD
   #######################################
 - name: configure smtpd
-  hosts: node2, node4, node5
+  hosts: node5, node6
   user: admin
   become: true
   become_method: doas
@@ -690,7 +690,7 @@
   # DOVECOT
   #######################################
 - name: configure dovecot
-  hosts: node2, node4, node5
+  hosts: node5, node6
   user: admin
   become: true
   become_method: doas
@@ -755,7 +755,7 @@
   # SPAMD
   #######################################
 - name: configure spamd
-  hosts: node2, node4, node5
+  hosts: node5, node6
   user: admin
   become: true
   become_method: doas
@@ -785,6 +785,7 @@
           46.36.36.48
           45.32.185.50
           45.32.152.181
+          209.250.244.111
       state: present
       create: true
       backup: yes
@@ -823,8 +824,8 @@
   #######################################
   # ZABBIX AGENT
   #######################################
-- name: configure zabbix zabbix
-  hosts: node2, node4, node5
+- name: configure zabbix agent
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas

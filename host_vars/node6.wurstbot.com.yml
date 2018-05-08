@@ -2,9 +2,9 @@
 #python-2.7.14 for OpenBSD 6.2
 
 # BASE
-install_url: https://ftp.fau.de/pub/OpenBSD
-dns_name: node4.wurstbot.com
-node_number: 4
+install_url: https://ftp.bit.nl/pub/OpenBSD
+dns_name: node6.wurstbot.com
+node_number: 2
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin
 extra_packages:
@@ -49,8 +49,6 @@ nrpe_commands:
 
 # ACME-client
 acme_aliases:
-  - zabbix.wurstbot.com
-  - nagios.wurstbot.com
   - mail.wurstbot.com
 
 # ZABBIX SERVER
@@ -59,18 +57,18 @@ acme_aliases:
 zabbix_version: 3.4.7
 zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
-zabbix_install_mode: true
+zabbix_install_mode: false
 zabbix_dns_name: zabbix.wurstbot.com
 zabbix_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
 
 # SQUID
-squid_cache_mem: 256
+squid_cache_mem: 512
 
 # SMTPD
 smtpd_pass: supersecret
 
 # NAGIOS
-nagios_server: true
+nagios_server: false
 # 4.3.1p0 on openbsd 6.3
 # 4.3.1 on openbsd 6.2
 # 4.3.1 nagios web on openbsd 6.2 / 6.3
@@ -117,7 +115,7 @@ mysql_version: "10.0.34v1"
 # MYSQL replication related
 mysql_root_pass: "supersecret"
 mysql_repl_pass: "supersecret"
-mysql_is_master: true
+mysql_is_master: false
 mysql_is_slave: false
 mysql_master_host: ""
 mysql_repl_dbs:

@@ -82,23 +82,22 @@ nagios_clients:
   - node2
   - node4
   - node5
+  - node6
 nagios_clients_ssh: #port 3200
   - node2
   - node4
   - node5
+  - node6
 nagios_clients_http: #port 80, 443
   - node2
   - node4
   - node5
+  - node6
 nagios_clients_zabbix: #port 10050
   - node2
   - node4
   - node5
 nagios_clients_mysql: #port 3306
-  - node2
-  - node4
-  - node5
-nagios_clients_squid: #port 3306
   - node2
   - node4
   - node5
@@ -108,6 +107,7 @@ nagios_clients_mail: #port 25, 587, 143, 993
   - node2
   - node4
   - node5
+  - node6
 
 # MYSQL
 #10.0.34v1 for openbsd 6.3

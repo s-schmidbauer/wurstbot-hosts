@@ -197,7 +197,7 @@
           block all
           pass out quick inet
           pass in on egress inet proto icmp from any to (egress)
-          pass in on egress inet proto tcp from any to (egress) port { ssh, http, https, 3128, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+          pass in on egress inet proto tcp from any to (egress) port { ssh, http, https, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
 
@@ -1319,20 +1319,20 @@
                 check_command                   check_tcp!10050
                 notifications_enabled           1
         }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients_tor |join(', ') }}
-                service_description             Tor SocksPort
-                check_command                   check_tcp!9050
-                notifications_enabled           1
-        }
-        define service{
-                use                             local-service
-                host_name                       {{ nagios_clients_tor |join(', ') }}
-                service_description             Tor OrPort
-                check_command                   check_tcp!8443
-                notifications_enabled           1
-        }
+        # define service{
+        #         use                             local-service
+        #         host_name                       __nagios_clients_tor |join(', ') }}
+        #         service_description             Tor SocksPort
+        #         check_command                   check_tcp!9050
+        #         notifications_enabled           1
+        # }
+        # define service{
+        #         use                             local-service
+        #         host_name                       __nagios_clients_tor |join(', ') }}
+        #         service_description             Tor OrPort
+        #         check_command                   check_tcp!8443
+        #         notifications_enabled           1
+        # }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ') }}
@@ -1514,17 +1514,23 @@
     ignore_errors: true
     when: mysql_install_results|changed
 
-  - name: mysql - configure .my.cnf
+  - name: mysql - configure .my.cnf listener
+    lineinfile:
+      dest: /etc/my.cnf
+      line: listen on 0.0.0.0
+      insertafter: ^[mysqld]
+    register: mysql_client_listener_results
+
+  - name: mysql - configure .my.cnf client config
     blockinfile:
       dest: /etc/my.cnf
       block: |
-        listen on 0.0.0.0
-
         [client]
         user=root
         password={{ mysql_root_pass }}
       backup: yes
       create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - mysql client config"
     register: mysql_client_config_results
 
   - name: mysql - started
@@ -1588,4 +1594,4 @@
 
   - name: mysql - restart mysqld
     service: name=mysqld state=restarted
-    when: ( mysql_client_config_results|changed ) or ( mysql_repl_config_results|changed )
+    when: ( mysql_client_listener_results|changed ) or ( mysql_client_config_results|changed ) or ( mysql_repl_config_results|changed )

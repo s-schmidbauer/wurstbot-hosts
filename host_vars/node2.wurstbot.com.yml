@@ -98,8 +98,8 @@ nagios_clients_mysql: #port 3306
   - node2
   - node4
   - node5
-nagios_clients_tor: #port 8443, 9050
-  - node4
+# nagios_clients_tor: #port 8443, 9050
+#   - node4
 nagios_clients_mail: #port 25, 587, 143, 993
   - node2
   - node4

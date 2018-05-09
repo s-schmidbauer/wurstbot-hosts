@@ -34,8 +34,14 @@
       backup: yes
       create: True
 
-  - name: create admin user
+  - name: create admin user with password
     shell: pass=$(echo {{ admin_pass }} | encrypt) ; adduser -batch {{ admin_user }} wheel 'admin' $pass
+    ignore_errors: true
+    no_log: true
+
+  - name: set admin user password
+    shell: pass=$(echo {{ admin_pass}} | encrypt) ; usermod -p $pass {{ admin_user }}
+    no_log: true
 
   - name: set install url
     lineinfile:
@@ -433,11 +439,11 @@
            listen on lo port 80
            root "/"
 
-           # listen on lo tls port 443
-           # listen on egress tls port 443
-           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           # tls key "/etc/ssl/private/{{ dns_name }}.key"
-           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
 

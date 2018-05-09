@@ -4,9 +4,10 @@
 # BASE
 install_url: https://ftp.bit.nl/pub/OpenBSD
 dns_name: node6.wurstbot.com
-node_number: 2
+node_number: 6
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin
+admin_pass: supersecret
 extra_packages:
   - pftop
   - rsync-3.1.3

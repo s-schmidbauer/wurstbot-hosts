@@ -9,6 +9,34 @@
   become_method: doas
 
   tasks:
+  - name: create adduser config
+    blockinfile:
+      dest: /etc/adduser.conf
+      block: |
+          verbose = 1
+          defaultpasswd = "yes"
+          encryptionmethod = "auto"
+          dotdir = "/etc/skel"
+          send_message = "no"
+          message_file = "/etc/adduser.message"
+          config = "/etc/adduser.conf"
+          logfile = "/var/log/adduser"
+          home = "/home"
+          path = ('/bin', '/usr/bin', '/usr/local/bin')
+          shellpref = ('csh', 'sh', 'bash', 'tcsh', 'ksh', 'nologin')
+          defaultshell = "ksh"
+          defaultgroup = "USER"
+          uid_start = 1000
+          uid_end = 2147483647
+          defaultclass = "default"
+          login_classes = ('default', 'daemon', 'staff', 'authpf', 'pbuild', 'bgpd', 'unbound', 'dovecot')
+      state: present
+      backup: yes
+      create: True
+
+  - name: create admin user
+    shell: pass=$(echo {{ admin_pass }} | encrypt) ; adduser -batch {{ admin_user }} wheel 'admin' $pass
+
   - name: set install url
     lineinfile:
       dest: /etc/installurl

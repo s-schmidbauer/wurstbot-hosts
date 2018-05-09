@@ -7,6 +7,7 @@ dns_name: node5.wurstbot.com
 node_number: 5
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin
+admin_pass: supersecret
 extra_packages:
   - pftop
   - rsync-3.1.2p0

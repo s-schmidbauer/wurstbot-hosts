@@ -30,6 +30,7 @@
           uid_end = 2147483647
           defaultclass = "default"
           login_classes = ('default', 'daemon', 'staff', 'authpf', 'pbuild', 'bgpd', 'unbound', 'dovecot')
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - adduser config"
       state: present
       backup: yes
       create: True
@@ -59,6 +60,7 @@
         HISTFILE=$HOME/.history
         HISTSIZE=500
         PATH=$PATH:/usr/local/bin:/usr/local/sbin
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - profile config"
       state: present
       create: True
 
@@ -74,6 +76,7 @@
         zabbix: {{ admin_email }}
       state: present
       create: True
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - aliases config"
     register: admin_email_result
 
   - name: activate forward root mails change
@@ -121,8 +124,6 @@
       name: "create zabbix proxy pid files"
       special_time: reboot
       job: "touch /var/run/zabbix_proxy.pid ; chown _zabbix:_zabbix /var/run/zabbix_proxy.pid ; rcctl restart zabbix_proxy"
-
-
 
   #######################################
   # UPDATE SYSTEM AND PACKAGES
@@ -173,6 +174,7 @@
         kern.seminfo.semmns=120               # max number ofsemaphores system-wide
         # reboot automatically after kernel panic
         ddb.panic=0
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - sysctl config"
       create: true
       backup: yes
 
@@ -193,7 +195,6 @@
       backup: yes
       state: present
       create: true
-
 
   #######################################
   # PF
@@ -231,7 +232,13 @@
           block all
           pass out quick inet
           pass in on egress inet proto icmp from any to (egress)
-          pass in on egress inet proto tcp from any to (egress) port { ssh, http, https, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+
+          # allow traffic from any hosts to web and monitoring ports
+          pass in on egress inet proto tcp from any to (egress) port { http, https, 5666, 10050, 10051 }
+
+          # allow traffic from known hosts to all ports
+          pass in on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { ssh, http, https, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
 
@@ -242,7 +249,6 @@
   - name: pf - activate pf
     shell: pfctl -f /etc/pf.conf
     when: pf_result is succeeded
-
 
   #######################################
   # SSH
@@ -275,6 +281,7 @@
         PasswordAuthentication yes
         UseDNS no
       backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - sshd pf config"
       validate: "/usr/sbin/sshd -T -f %s"
 
   - name: ssh - reload sshd
@@ -314,6 +321,7 @@
         connection_timeout=300
         allow_weak_random_seed=0
         {{ nrpe_commands_list }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nrpe config"
       backup: yes
       state: present
     register: nrpe_config_results
@@ -388,6 +396,7 @@
       block: |
         extension=mysql.so
         extension=mysqli.so
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - php.ini config"
       backup: yes
       state: present
     register: phpfpm_results
@@ -631,7 +640,6 @@
 
   - name: squid - enable
     shell: rcctl enable squid
-
 
   #######################################
   # SMTPD

@@ -14,6 +14,17 @@ extra_packages:
   - screen-4.0.3p6
   - unzip-6.0p11
 
+# PF
+trusted_hosts:
+  - 127.0.0.1
+  - 46.36.36.48          # node2
+  - 45.32.185.50         # node4
+  - 45.32.152.181        # node5
+  - 209.250.244.111      # node6
+  - 31.201.195.130       # home
+  - 84.207.225.37        # work
+  - 62.195.130.48        # mg
+
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
 
@@ -60,7 +71,7 @@ acme_aliases:
 zabbix_version: 3.4.7
 zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
-zabbix_install_mode: true
+zabbix_install_mode: false
 zabbix_dns_name: zabbix.wurstbot.com
 zabbix_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
 

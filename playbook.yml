@@ -1,6 +1,6 @@
 ---
   ######################################
-  BASIS SETUP
+  # BASIS SETUP
   ######################################
 - name: basic system setup
   hosts: node2, node4, node5, node6

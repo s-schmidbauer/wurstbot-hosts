@@ -1,7 +1,7 @@
 ---
-  #######################################
-  # BASIS SETUP
-  #######################################
+  ######################################
+  BASIS SETUP
+  ######################################
 - name: basic system setup
   hosts: node2, node4, node5, node6
   user: admin
@@ -343,7 +343,7 @@
   # PHP-FPM
   #######################################
 - name: configure php-fpm
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -416,7 +416,7 @@
   # SLOWCGI
   #######################################
 - name: configure slowcgi
-  hosts: node2, node4, node5
+  hosts: node2, node4, node5, node6
   user: admin
   become: true
   become_method: doas
@@ -555,6 +555,77 @@
     register: ocsp_create_result
     when: acme_renew_result is succeeded
     ignore_errors: true
+
+  #######################################
+  # DOKUWIKI
+  #######################################
+- name: configure dokuwiki
+  hosts: node6
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: dokuwiki - install
+    openbsd_pkg: name=dokuwiki-{{ dokuwiki_version }} state=present
+
+  - name: dokuwiki - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ dokuwiki_dns_name }} {
+           alias wiki{{ node_number }}.wurstbot.com
+           listen on egress port 80
+           listen on lo port 80
+           root "/dokuwiki"
+
+           listen on lo port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+            directory {
+                    index "index.php"
+            }
+
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+
+            location "/.well-known/acme-challenge/*" {
+                root "/acme"
+                root strip 2
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost"
+    register: dokuwiki_web_config_results
+
+  # - name: dokuwiki - get plugins
+  #   unarchive:
+  #     src: "{{ item }}"
+  #     dest: /var/www/dokuwiki/lib/plugins/
+  #     remote_src: yes
+  #   with_items:
+  #     - https://github.com/splitbrain/dokuwiki-plugin-upgrade/zipball/master
+  #     - https://github.com/splitbrain/dokuwiki-plugin-captcha/zipball/master
+  #     - https://github.com/michitux/dokuwiki-plugin-move/zipball/master
+  #     - https://github.com/dokufreaks/plugin-tag/tarball/master
+  #   register: dokuwiki_plugins_result
+
+  - name: dokuwiki - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+    when: dokuwiki_web_config_results|changed
+
+  - name: dokuwiki - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: dokuwiki - reload httpd when config changed
+    service: name=httpd state=reloaded
 
   #######################################
   # SQUID

@@ -13,7 +13,7 @@ extra_packages:
   - rsync-3.1.2p0
   - screen-4.0.3p6
   - unzip-6.0p11
-  
+
 # PF
 trusted_hosts:
   - 127.0.0.1
@@ -74,6 +74,12 @@ zabbix_db_pass: supersecret
 zabbix_install_mode: false
 zabbix_dns_name: zabbix.wurstbot.com
 zabbix_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
+
+# DOKUWIKI
+#2017.02.19e for OpenBSD 6.3
+#2017.02.19b for OpenBSD 6.2
+dokuwiki_dns_name: wiki.wurstbot.com
+dokuwiki_version: 2017.02.19b
 
 # SQUID
 squid_cache_mem: 256

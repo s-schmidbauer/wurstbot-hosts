@@ -62,7 +62,7 @@ nrpe_commands:
 # ACME-client
 acme_aliases:
   - mail.wurstbot.com
-  - wiki{{ node_number }}.wurstbot.com
+  - mail{{ node_number }}.wurstbot.com
   - wiki.wurstbot.com
   - wiki{{ node_number }}.wurstbot.com
 

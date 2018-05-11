@@ -589,6 +589,12 @@
                     index "index.php"
             }
 
+            location "/data" { block }
+            location "/conf" { block }
+            location "/bin"  { block }
+            location "/inc"  { block }
+            location "/.ht*" { block }
+
             location "*.php*" {
                     fastcgi socket ":{{ php_port }}"
             }
@@ -602,7 +608,18 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost"
     register: dokuwiki_web_config_results
 
-  # - name: dokuwiki - get plugins
+  # dokuwiki - configure if in install mode
+  # conf/local.php
+  # conf/users.auth.php
+  # conf/plugins.local.php
+  # conf/acl.auth.php
+
+  # - name: dokuwiki - delete install script
+  #   file:
+  #     path: /var/www/dokuwiki/install.php
+  #     state: absent
+
+  # - name: dokuwiki - get plugins if in install mode
   #   unarchive:
   #     src: "{{ item }}"
   #     dest: /var/www/dokuwiki/lib/plugins/

@@ -62,7 +62,9 @@ nrpe_commands:
 # ACME-client
 acme_aliases:
   - mail.wurstbot.com
+  - wiki{{ node_number }}.wurstbot.com
   - wiki.wurstbot.com
+  - wiki{{ node_number }}.wurstbot.com
 
 # ZABBIX SERVER
 #3.4.7 for OpenBSD 6.3

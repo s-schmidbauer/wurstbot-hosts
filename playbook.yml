@@ -608,29 +608,6 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost"
     register: dokuwiki_web_config_results
 
-  # dokuwiki - configure if in install mode
-  # conf/local.php
-  # conf/users.auth.php
-  # conf/plugins.local.php
-  # conf/acl.auth.php
-
-  # - name: dokuwiki - delete install script
-  #   file:
-  #     path: /var/www/dokuwiki/install.php
-  #     state: absent
-
-  # - name: dokuwiki - get plugins if in install mode
-  #   unarchive:
-  #     src: "{{ item }}"
-  #     dest: /var/www/dokuwiki/lib/plugins/
-  #     remote_src: yes
-  #   with_items:
-  #     - https://github.com/splitbrain/dokuwiki-plugin-upgrade/zipball/master
-  #     - https://github.com/splitbrain/dokuwiki-plugin-captcha/zipball/master
-  #     - https://github.com/michitux/dokuwiki-plugin-move/zipball/master
-  #     - https://github.com/dokufreaks/plugin-tag/tarball/master
-  #   register: dokuwiki_plugins_result
-
   - name: dokuwiki - check httpd config
     command: /usr/sbin/httpd -n
     register: httpd_result

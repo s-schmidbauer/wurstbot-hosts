@@ -1016,8 +1016,8 @@
           LogFileSize=10
           EnableRemoteCommands=1
           LogRemoteCommands=1
-          Server={{ zabbix_servers }}
-          ServerActive={{ zabbix_servers }}
+          Server={{ zabbix_servers |join(', ') }}
+          ServerActive={{ zabbix_servers |join(', ') }}
           ListenPort=10050
           Hostname={{ dns_name }}
           ListenIP=0.0.0.0
@@ -1455,9 +1455,16 @@
         }
         define service{
                 use                             local-service
-                host_name                       {{ nagios_clients_zabbix |join(', ') }}
-                service_description             zabbix server
+                host_name                       {{ zabbix_clients |join(', ') }}
+                service_description             zabbix agent
                 check_command                   check_tcp!10050
+                notifications_enabled           1
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ zabbix_servers |join(', ') }}
+                service_description             zabbix server
+                check_command                   check_tcp!10051
                 notifications_enabled           1
         }
         # define service{

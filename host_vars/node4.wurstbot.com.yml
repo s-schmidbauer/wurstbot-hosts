@@ -73,7 +73,15 @@ zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
 zabbix_install_mode: false
 zabbix_dns_name: zabbix.wurstbot.com
-zabbix_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
+zabbix_servers:
+  - node2
+  - node4
+  - node5
+zabbix_clients:
+  - node2
+  - node4
+  - node5
+  - node6
 
 # DOKUWIKI
 #2017.02.19e for OpenBSD 6.3
@@ -111,10 +119,6 @@ nagios_clients_http: #port 80, 443
   - node4
   - node5
   - node6
-nagios_clients_zabbix: #port 10050
-  - node2
-  - node4
-  - node5
 nagios_clients_mysql: #port 3306
   - node2
   - node4

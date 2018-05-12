@@ -523,6 +523,11 @@
       backup: yes
       create: true
 
+  - name: acme - backup certs and keys
+    shell: tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +"%T").tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
+    chdir: /etc/ssl
+    register: acme_backup_results
+
   - name: acme - create new key and cert if expired
     shell: /usr/sbin/acme-client -vAD {{ dns_name }}
     register: acme_renew_result
@@ -857,6 +862,53 @@
 
   - name: dovecot - enable
     shell: rcctl enable dovecot
+
+  - name: dovecot - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ mail_dns_name }} {
+           alias mail{{ node_number }}.wurstbot.com
+
+           listen on egress port 80
+           listen on lo port 80
+           root "/"
+
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+
+           location "/.well-known/acme-challenge/*" {
+                root "/acme"
+                root strip 2
+           }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - mail vhost"
+
+  - name: dovecot - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: dovecot - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: dovecot - started
+    service: name=slowcgi state=started
+
+  - name: dovecot - enable
+    shell: rcctl enable httpd
+
+  - name: dovecot - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded
+
 
   #######################################
   # SPAMD

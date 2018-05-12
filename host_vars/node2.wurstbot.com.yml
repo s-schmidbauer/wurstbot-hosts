@@ -98,6 +98,9 @@ squid_cache_mem: 512
 # SMTPD
 smtpd_pass: supersecret
 
+# DOVECOT
+mail_dns_name: mail.wurstbot.com
+
 # NAGIOS
 nagios_server: true
 

@@ -524,7 +524,7 @@
       create: true
 
   - name: acme - backup certs and keys
-    shell: tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +"%T").tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
+    shell: tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
     chdir: /etc/ssl
     register: acme_backup_results
 

@@ -3,7 +3,7 @@
   # BASIS SETUP
   ######################################
 - name: basic system setup
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -129,7 +129,7 @@
   # UPDATE SYSTEM AND PACKAGES
   #######################################
 - name: install system updates
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -157,7 +157,7 @@
   # SYSCTL
   #######################################
 - name: configure sysctl
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -182,7 +182,7 @@
   # DOAS
   #######################################
 - name: configure doas
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -200,7 +200,7 @@
   # PF
   #######################################
 - name: configure pf
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -254,7 +254,7 @@
   # SSH
   #######################################
 - name: configure ssh
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -291,7 +291,7 @@
   # NRPE
   #######################################
 - name: configure nrpe
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -316,7 +316,7 @@
       block: |
         log_facility=daemon
         server_port={{ nrpe_port }}
-        allowed_hosts={{ nagios_servers }}
+        allowed_hosts={{ nagios_servers| join(', ') }}
         debug=0
         connection_timeout=300
         allow_weak_random_seed=0
@@ -343,7 +343,7 @@
   # PHP-FPM
   #######################################
 - name: configure php-fpm
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -416,7 +416,7 @@
   # SLOWCGI
   #######################################
 - name: configure slowcgi
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -433,7 +433,7 @@
   # HTTPD
   #######################################
 - name: configure httpd
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -503,7 +503,7 @@
   # ACME
   #######################################
 - name: configure acme
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -565,7 +565,7 @@
   # DOKUWIKI
   #######################################
 - name: configure dokuwiki
-  hosts: node6
+  hosts: wiki_hosts
   user: admin
   become: true
   become_method: doas
@@ -630,7 +630,7 @@
   # SQUID
   #######################################
 - name: configure squid
-  hosts: node2, node4, node5
+  hosts: squid_hosts
   user: admin
   become: true
   become_method: doas
@@ -715,7 +715,7 @@
   # SMTPD
   #######################################
 - name: configure smtpd
-  hosts: node5, node6
+  hosts: mail_hosts
   user: admin
   become: true
   become_method: doas
@@ -802,7 +802,7 @@
   # DOVECOT
   #######################################
 - name: configure dovecot
-  hosts: node5, node6
+  hosts: mail_hosts
   user: admin
   become: true
   become_method: doas
@@ -914,7 +914,7 @@
   # SPAMD
   #######################################
 - name: configure spamd
-  hosts: node5, node6
+  hosts: mail_hosts
   user: admin
   become: true
   become_method: doas
@@ -984,7 +984,7 @@
   # ZABBIX AGENT
   #######################################
 - name: configure zabbix agent
-  hosts: node2, node4, node5, node6
+  hosts: all_hosts
   user: admin
   become: true
   become_method: doas
@@ -1100,7 +1100,7 @@
   # ZABBIX SERVER
   #######################################
 - name: configure zabbix server
-  hosts: node2, node4, node5
+  hosts: zabbix_server_hosts
   user: admin
   become: true
   become_method: doas
@@ -1296,7 +1296,7 @@
   # NAGIOS
   #######################################
 - name: configure nagios
-  hosts: node2, node4, node5
+  hosts: nagios_server_hosts
   user: admin
   become: true
   become_method: doas
@@ -1465,12 +1465,12 @@
                 use                             local-service
                 host_name                       {{ nagios_clients_ssh |join(', ') }}
                 service_description             SSH
-                check_command                   check_tcp!3200
+                check_command                   check_tcp!{{ ssh_port }}
                 notifications_enabled           1
         }
         define service{
                 use                             local-service
-                host_name                       {{ nagios_clients_mysql |join(', ') }}
+                host_name                       {{ nagios_clients_squid |join(', ') }}
                 service_description             squid
                 check_command                   check_tcp!3128
                 notifications_enabled           1
@@ -1668,7 +1668,7 @@
   # MariaDB
   #######################################
 - name: configure mysql
-  hosts: node2, node4, node5
+  hosts: mysql_hosts
   user: admin
   become: true
   become_method: doas

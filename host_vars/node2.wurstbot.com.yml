@@ -42,7 +42,11 @@ php_port: 6060
 #2.15p7-no_ssl or 2.15p7 for openbsd 6.2
 nrpe_version: 2.15p8-no_ssl
 nrpe_port: 5666
-nagios_servers: 127.0.0.1,46.36.36.48,45.32.185.50,45.32.152.181
+nagios_servers:
+  - 127.0.0.1
+  - 46.36.36.48
+  - 45.32.185.50
+  - 45.32.152.181
 
 # hard coded
 # command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10
@@ -126,6 +130,10 @@ nagios_clients_http: #port 80, 443
   - node4
   - node5
   - node6
+nagios_clients_squid: #port 3128
+  - node2
+  - node4
+  - node5
 nagios_clients_mysql: #port 3306
   - node2
   - node4

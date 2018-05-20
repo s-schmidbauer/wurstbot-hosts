@@ -215,8 +215,6 @@
                              192.168.0.0/16 198.18.0.0/15 198.51.100.0/24        \
                              203.0.113.0/24 }
 
-          set skip on lo
-
           block return    # block stateless traffic
           pass            # establish keep-state
 
@@ -225,11 +223,16 @@
 
           set block-policy drop
           set loginterface egress
+          antispoof for lo0
           set skip on lo0
+
           match in all scrub (no-df random-id max-mss 1440)
+          block in from no-route to any
+          block in from urpf-failed to any
           block in quick on egress from <martians> to any
           block return out quick on egress from any to <martians>
           block all
+
           pass out quick inet
           pass in on egress inet proto icmp from any to (egress)
 

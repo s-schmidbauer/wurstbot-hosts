@@ -36,6 +36,6 @@ node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_p
 node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
 
 [mysql_hosts]
-node2
-node4
-node5
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecds
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa

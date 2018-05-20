@@ -1648,6 +1648,12 @@
             location "/nagios*" {
                     root { "/nagios", strip 1 }
             }
+
+           location "/.well-known/acme-challenge/*" {
+                no authenticate
+                root "/acme"
+                root strip 2
+           }
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"

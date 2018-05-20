@@ -237,7 +237,7 @@
           pass in on egress inet proto tcp from any to (egress) port { http, https, 5666, 10050, 10051 }
 
           # allow traffic from known hosts to all ports
-          pass in on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { ssh, http, https, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+          pass in on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { ssh, http, https, 179, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
@@ -524,8 +524,7 @@
       create: true
 
   - name: acme - backup certs and keys
-    shell: tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
-    chdir: /etc/ssl
+    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
     register: acme_backup_results
 
   - name: acme - create new key and cert if expired

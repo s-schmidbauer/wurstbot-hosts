@@ -334,6 +334,9 @@
   - name: bird - start
     service: name=bird state=started
 
+  - name: bird - enable bird
+    shell: rcctl enable bird
+
   #######################################
   # SSH
   #######################################

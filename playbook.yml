@@ -172,6 +172,10 @@
         kern.shminfo.shmmni=240               # max number of sharedmemory segments system-wide
         # for zabbix agent, double semaphore count - fixes cannot open log: cannot create semaphore set
         kern.seminfo.semmns=120               # max number ofsemaphores system-wide
+        #IPv6
+        net.inet.ip.forwarding=1
+        net.inet6.ip6.forwarding=1
+        net.inet6.ip6.redirect=1
         # reboot automatically after kernel panic
         ddb.panic=0
 

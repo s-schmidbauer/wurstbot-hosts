@@ -174,6 +174,7 @@
         kern.seminfo.semmns=120               # max number ofsemaphores system-wide
         # reboot automatically after kernel panic
         ddb.panic=0
+
       marker: "# {mark} ANSIBLE MANAGED BLOCK - sysctl config"
       create: true
       backup: yes
@@ -210,7 +211,8 @@
     blockinfile:
       dest: /etc/pf.conf
       block: |
-          table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16     \
+          #allow 169.254.0.0/16 for bgp
+          table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 \
                              172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
                              192.168.0.0/16 198.18.0.0/15 198.51.100.0/24        \
                              203.0.113.0/24 }
@@ -252,6 +254,81 @@
   - name: pf - activate pf
     shell: pfctl -f /etc/pf.conf
     when: pf_result is succeeded
+
+  #######################################
+  # BIRD / BGP
+  #######################################
+- name: configure bgp / bird
+  hosts: bird_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: bird - configure ha ip
+    lineinfile:
+      dest: /etc/hostname.{{ bgp_dev }}
+      line: inet alias {{ bgp_ha_ip }} {{ bgp_ha_ip_mask }}
+      create: true
+      backup: yes
+    register: bird_ip_config_results
+
+  - name: bird - restart network if ip config changed
+    shell: sh /etc/netstart
+    when: bird_ip_config_results|changed
+
+  - name: bird - install
+    openbsd_pkg: name=bird state=present
+    register: bird_install_results
+
+  - name: bird - delete existing config
+    file:
+      path: /etc/bird.conf
+      state: absent
+    when: bird_install_results|changed
+
+  - name: bird - configure
+    blockinfile:
+      dest: /etc/bird.conf
+      block: |
+        log "/var/log/bird" all;
+        router id {{ node_ip }};
+        protocol device
+        {
+            scan time 5;
+        }
+        protocol direct
+        {
+            interface "{{ bgp_dev }}";
+        }
+        protocol bgp vultr
+        {
+            export filter {
+                bgp_path.prepend({{ bgp_as }});
+                accept;
+            };
+            local as {{ bgp_as }};
+            source address {{ node_ip }};
+            import none;
+            export all;
+            graceful restart on;
+            next hop self;
+            multihop 2;
+            neighbor {{ bgp_neigh }} as {{ bgp_neigh_as }};
+            password "{{ bgp_pass }}";
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - bird config"
+      create: true
+      backup: yes
+      state: present
+    register: bird_config_results
+
+  - name: bird - reload bird
+    service: name=bird state=reloaded
+    when: bird_config_results|changed
+
+  - name: bird - start
+    service: name=bird state=started
 
   #######################################
   # SSH

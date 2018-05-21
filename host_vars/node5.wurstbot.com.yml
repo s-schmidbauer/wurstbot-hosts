@@ -5,6 +5,7 @@
 install_url: https://ftp.bit.nl/pub/OpenBSD
 dns_name: node5.wurstbot.com
 node_number: 5
+node_ip: 45.32.185.50
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin
 admin_pass: supersecret
@@ -13,6 +14,15 @@ extra_packages:
   - rsync-3.1.2p0
   - screen-4.0.3p6
   - unzip-6.0p11
+
+# BIRD
+bgp_dev: vio0
+bgp_ha_ip: 95.179.143.12
+bgp_ha_ip_mask: 255.255.254.0
+bgp_as: 64660
+bgp_neigh: 169.254.169.254
+bgp_neigh_as: 64515
+bgp_pass: supersecret
 
 # PF
 trusted_hosts:

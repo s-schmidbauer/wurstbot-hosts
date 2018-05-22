@@ -16,9 +16,9 @@ extra_packages:
   - unzip-6.0p11
 
 # BIRD
-bgp_dev: vio0
+bgp_dev: lo1
 bgp_ha_ip: 95.179.143.12
-bgp_ha_ip_mask: 255.255.254.0
+bgp_ha_ip_mask: 32
 bgp_as: 64660
 bgp_neigh: 169.254.169.254
 bgp_neigh_as: 64515

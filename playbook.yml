@@ -269,10 +269,14 @@
   become_method: doas
 
   tasks:
+  - name: bird - create interface
+    shell: ifconfig {{ bgp_dev }} create
+    ignore_errors: true
+
   - name: bird - configure ha ip
     lineinfile:
       dest: /etc/hostname.{{ bgp_dev }}
-      line: inet alias {{ bgp_ha_ip }} {{ bgp_ha_ip_mask }}
+      line: inet {{ bgp_ha_ip }}/{{ bgp_ha_ip_mask }} up
       create: true
       backup: yes
     register: bird_ip_config_results

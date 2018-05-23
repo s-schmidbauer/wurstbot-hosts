@@ -148,7 +148,7 @@
       register: package_update_results
       when: update_mode==True
 
-    - name: nrpe - install extra packages
+    - name: install extra packages
       openbsd_pkg: name={{ item }} state=present
       with_items: "{{ extra_packages }}"
       register: extra_packages_result
@@ -215,39 +215,42 @@
     blockinfile:
       dest: /etc/pf.conf
       block: |
-          #allow 169.254.0.0/16 for bgp
-          table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 \
-                             172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
-                             192.168.0.0/16 198.18.0.0/15 198.51.100.0/24        \
-                             203.0.113.0/24 }
+            #allow 169.254.0.0/16 for bgp
+            table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 \
+                               172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
+                               192.168.0.0/16 198.18.0.0/15 198.51.100.0/24        \
+                               203.0.113.0/24 }
 
-          block return    # block stateless traffic
-          pass            # establish keep-state
+            #block return    # block stateless traffic
+            pass            # establish keep-state
 
-          # By default, do not permit remote connections to X11
-          block return in on ! lo0 proto tcp to port 6000:6010
+            # By default, do not permit remote connections to X11
+            block return in on ! lo0 proto tcp to port 6000:6010
 
-          set block-policy drop
-          set loginterface pflog0
-          antispoof for lo0
-          set skip on lo0
-          set skip on lo1
+            set block-policy drop
+            set loginterface pflog0
+            antispoof for lo0
+            set skip on lo0
 
-          match in all scrub (no-df random-id max-mss 1440)
-          block in from no-route to any
-          block in from urpf-failed to any
-          block in quick on egress from <martians> to any
-          block return out quick on egress from any to <martians>
-          block log all
+            match in all scrub (no-df random-id max-mss 1440)
+            block in from no-route to any
+            block in from urpf-failed to any
+            block in quick on egress from <martians> to any
+            block return out quick on egress from any to <martians>
+            block log all
 
-          pass out log quick inet
-          pass in on egress inet proto icmp from any to (egress)
+            pass out log quick inet
+            pass in on egress inet proto icmp from any to any
 
-          # allow traffic from any hosts to web and monitoring ports
-          pass in log on egress inet proto tcp from any to (egress) port { http, https, 5666, 10050, 10051 }
+            # allow traffic from any hosts on web and monitoring ports
+            pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} }
 
-          # allow traffic from known hosts to all ports
-          pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { ssh, http, https, bgp, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+            # allow traffic from known hosts on some ports
+            pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  }
+
+            # allow traffic from any hosts to ha ip on some ports
+            pass in log on vio0 inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} }
+
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
@@ -270,14 +273,21 @@
   become_method: doas
 
   tasks:
-  - name: bird - create interface
-    shell: ifconfig {{ bgp_dev }} create
+  - name: bird - check if interface exists
+    shell: ifconfig {{ bgp_dev }}
+    register: bgp_interface_exists
     ignore_errors: true
 
+  - name: bird - create interface
+    shell: ifconfig {{ bgp_dev }} create
+    when: bgp_interface_exists|failed
+
   - name: bird - configure ha ip
-    lineinfile:
+    blockinfile:
       dest: /etc/hostname.{{ bgp_dev }}
-      line: inet {{ bgp_ha_ip }}/{{ bgp_ha_ip_mask }} up
+      block: |
+        inet {{ bgp_ha_ip }}/{{ bgp_ha_ip_mask }}
+        up
       create: true
       backup: yes
     register: bird_ip_config_results
@@ -341,6 +351,65 @@
 
   - name: bird - enable bird
     shell: rcctl enable bird
+
+  #######################################
+  # RELAYD
+  #######################################
+- name: configure relayd
+  hosts: relayd_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: relayd - start
+    service: name=relayd state=started
+
+  - name: relay - enable relayd
+    shell: rcctl enable relayd
+
+  - name: relayd - configure
+    blockinfile:
+      dest: /etc/relayd.conf
+      block: |
+          table <rrr_hosts> { 37.48.90.117 }
+          rrr_ipv4 = "{{ bgp_ha_ip }}"
+          #rrr_ip = "2001:19f0:5001:10d0::0"
+
+          http protocol "http" {
+              tcp { nodelay, sack, socket buffer 65536, backlog 100 }
+              #match response header set "Cache-Control" value "max-age=1814400"
+              return error
+              pass
+          }
+
+          relay "rrr_relay" {
+              listen on $rrr_ipv4 port 80
+              #listen on $rrr_ip port 80
+              protocol "http"
+              forward to <rrr_hosts> port 80 check tcp
+          }
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
+
+  - name: relayd - check config
+    command: /usr/sbin/relayd -nf /etc/relayd.conf
+    register: relayd_result
+    ignore_errors: yes
+
+  - name: relayd - handle failure
+    action: fail msg="relayd.conf check failed."
+    when: relayd_result|failed
+
+  - name: relayd - started
+    service: name=relayd state=started
+
+  - name: relayd - enable
+    shell: rcctl enable relayd
+
+  - name: relayd - reload relayd
+    service: name=relayd state=reloaded
+    when: relayd_result is succeeded
 
   #######################################
   # SSH

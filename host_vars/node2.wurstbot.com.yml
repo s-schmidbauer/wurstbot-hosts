@@ -15,6 +15,9 @@ extra_packages:
   - screen-4.0.3p6
   - unzip-6.0p11
 
+# SYSTEM AND PACKAGE UPDATES
+update_mode: false
+
 # BIRD only on vultr
 # bgp_dev: lo1
 # bgp_ha_ip: ***
@@ -35,8 +38,33 @@ trusted_hosts:
   - 84.207.225.37        # work
   - 62.195.130.48        # mg
 
-# SYSTEM AND PACKAGE UPDATES
-update_mode: false
+trusted_hosts_ports:
+  - ssh
+  - http
+  - https
+  - bgp
+  - 3128
+  - 3306
+  - 3200
+  - 465
+  - 5666
+  - 10050
+  - 10051
+  - smtp
+  - submission
+  - imap
+  - imaps
+
+trusted_ha_hosts_ports:
+  - 80
+  - 9999
+
+all_hosts_ports:
+  - http
+  - https
+  - 5666 # needed for not yet trusted defined clients
+  - 10050 # needed for not yet trusted defined clients
+  - 10051 # needed for not yet trusted defined clients
 
 #SSH
 ssh_port: 3200

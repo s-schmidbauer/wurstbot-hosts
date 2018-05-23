@@ -20,14 +20,16 @@ update_mode: false
 
 # BIRD only on vultr
 # bgp_dev: lo1
-# bgp_ha_ip: ***
+bgp_ha_ip: 95.179.143.12 #required for pf.conf
 # bgp_ha_ip_mask: 32
 # bgp_as: 64660
 # bgp_neigh: 169.254.169.254
 # bgp_neigh_as: 64515
-# bgp_pass: ***
+# bgp_pass: supersecret
 
 # PF
+ext_if: re0
+
 trusted_hosts:
   - 127.0.0.1
   - 46.36.36.48          # node2

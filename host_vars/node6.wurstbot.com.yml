@@ -28,6 +28,8 @@ bgp_neigh_as: 64515
 bgp_pass: supersecret
 
 # PF
+ext_if: vio0
+
 trusted_hosts:
   - 127.0.0.1
   - 46.36.36.48          # node2

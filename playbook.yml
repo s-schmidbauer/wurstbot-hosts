@@ -249,7 +249,7 @@
             pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  }
 
             # allow traffic from any hosts to ha ip on some ports
-            pass in log on vio0 inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} }
+            pass in log on {{ ext_if }} inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} }
 
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes

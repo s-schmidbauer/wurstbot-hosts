@@ -228,25 +228,26 @@
           block return in on ! lo0 proto tcp to port 6000:6010
 
           set block-policy drop
-          set loginterface egress
+          set loginterface pflog0
           antispoof for lo0
           set skip on lo0
+          set skip on lo1
 
           match in all scrub (no-df random-id max-mss 1440)
           block in from no-route to any
           block in from urpf-failed to any
           block in quick on egress from <martians> to any
           block return out quick on egress from any to <martians>
-          block all
+          block log all
 
-          pass out quick inet
+          pass out log quick inet
           pass in on egress inet proto icmp from any to (egress)
 
           # allow traffic from any hosts to web and monitoring ports
-          pass in on egress inet proto tcp from any to (egress) port { http, https, 5666, 10050, 10051 }
+          pass in log on egress inet proto tcp from any to (egress) port { http, https, 5666, 10050, 10051 }
 
           # allow traffic from known hosts to all ports
-          pass in on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { ssh, http, https, 179, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
+          pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { ssh, http, https, bgp, 3128, 3306, 3200, 465, 5666, 10050, 10051, smtp, submission, imap, imaps }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"

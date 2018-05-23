@@ -160,6 +160,9 @@ nagios_clients:
   - node4
   - node5
   - node6
+nagios_clients_bgp: #port 179
+  - node5
+  - node6
 nagios_clients_ssh: #port 3200
   - node2
   - node4

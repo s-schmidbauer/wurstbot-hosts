@@ -449,6 +449,68 @@
     service: name=sshd state=reloaded
 
   #######################################
+  # ACME
+  #######################################
+- name: configure acme
+  hosts: all_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: acme - configure acme
+    blockinfile:
+      dest: /etc/acme-client.conf
+      block: |
+        domain "{{ dns_name }}" {
+          alternative names { www.wurstbot.com {{ acme_aliases | join(' ') }} }
+          domain key "/etc/ssl/private/{{ dns_name }}.key"
+          domain certificate "/etc/ssl/{{ dns_name }}.crt"
+          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
+          sign with letsencrypt
+        }
+      backup: yes
+      create: true
+
+  - name: acme - backup certs and keys
+    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
+    register: acme_backup_results
+    ignore_errors: true  
+
+  - name: acme - create new key and cert if expired
+    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
+    register: acme_renew_result
+    ignore_errors: true
+
+    #make sure the cert does not exist yet and a webserver is able to satisify the request
+  - name: acme - configure cert and key
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    ignore_errors: true
+
+  - name: acme - create ocsp
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+    ignore_errors: true
+
+  - name: acme - delete old key and cert if expired
+    shell: rm /etc/ssl/private/{{ dns_name }}.key ; rm /etc/ssl/certs/{{ dns_name }}.*
+    ignore_errors: true
+    register: acme_expired_deletion_result
+    when: ocsp_create_result.stdout.find('old') != -1
+
+  - name: acme - create new key and cert if expired
+    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
+    register: acme_renew_result
+    when: acme_expired_deletion_result is succeeded
+    ignore_errors: true
+
+  - name: acme - refresh ocsp if key and cert were renewed
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+    when: acme_renew_result is succeeded
+    ignore_errors: true
+
+  #######################################
   # NRPE
   #######################################
 - name: configure nrpe
@@ -659,67 +721,6 @@
       line: <html><p>{{ dns_name }}</p></html>
       state: present
       create: true
-
-  #######################################
-  # ACME
-  #######################################
-- name: configure acme
-  hosts: all_hosts
-  user: admin
-  become: true
-  become_method: doas
-
-  tasks:
-  - name: acme - configure acme
-    blockinfile:
-      dest: /etc/acme-client.conf
-      block: |
-        domain "{{ dns_name }}" {
-          alternative names { {{ acme_aliases | join(' ') }} }
-          domain key "/etc/ssl/private/{{ dns_name }}.key"
-          domain certificate "/etc/ssl/{{ dns_name }}.crt"
-          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
-          sign with letsencrypt
-        }
-      backup: yes
-      create: true
-
-  - name: acme - backup certs and keys
-    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
-    register: acme_backup_results
-
-  - name: acme - create new key and cert if expired
-    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
-    register: acme_renew_result
-    ignore_errors: true
-
-    #make sure the cert does not exist yet and a webserver is able to satisify the request
-  - name: acme - configure cert and key
-    shell: /usr/sbin/acme-client -vD {{ dns_name }}
-    ignore_errors: true
-
-  - name: acme - create ocsp
-    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
-    register: ocsp_create_result
-    ignore_errors: true
-
-  - name: acme - delete old key and cert if expired
-    shell: rm /etc/ssl/private/{{ dns_name }}.key ; rm /etc/ssl/certs/{{ dns_name }}.*
-    ignore_errors: true
-    register: acme_expired_deletion_result
-    when: ocsp_create_result.stdout.find('old') != -1
-
-  - name: acme - create new key and cert if expired
-    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
-    register: acme_renew_result
-    when: acme_expired_deletion_result is succeeded
-    ignore_errors: true
-
-  - name: acme - refresh ocsp if key and cert were renewed
-    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
-    register: ocsp_create_result
-    when: acme_renew_result is succeeded
-    ignore_errors: true
 
   #######################################
   # DOKUWIKI
@@ -1581,35 +1582,35 @@
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Users check
                 check_command                   check_nrpe!check_users
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Load check
                 check_command                   check_nrpe!check_load
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Disk check
                 check_command                   check_nrpe!check_disk
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Zombie procs check
                 check_command                   check_nrpe!check_zombie_procs
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             Total procs check
                 check_command                   check_nrpe!check_total_procs
-                notifications_enabled           1
+                notifications_enabled           0
         }
 
         define service{
@@ -1617,44 +1618,51 @@
                 host_name                       {{ nagios_clients |join(', ') }}
                 service_description             PING
                 check_command                   check_ping!100.0,20%!500.0,60%
-                notifications_enabled           1
+                notifications_enabled           0
         }
         # TCP CHECKS
         ############
         define service{
                 use                             local-service
+                host_name                       {{ nagios_clients_bgp |join(', ') }}
+                service_description             BGP
+                check_command                   check_tcp!179
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
                 host_name                       {{ nagios_clients_ssh |join(', ') }}
                 service_description             SSH
                 check_command                   check_tcp!{{ ssh_port }}
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_squid |join(', ') }}
                 service_description             squid
                 check_command                   check_tcp!3128
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mysql |join(', ') }}
                 service_description             mysql
                 check_command                   check_tcp!3306
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ zabbix_clients |join(', ') }}
                 service_description             zabbix agent
                 check_command                   check_tcp!10050
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ zabbix_servers |join(', ') }}
                 service_description             zabbix server
                 check_command                   check_tcp!10051
-                notifications_enabled           1
+                notifications_enabled           0
         }
         # define service{
         #         use                             local-service
@@ -1675,49 +1683,49 @@
                 host_name                       {{ nagios_clients_http |join(', ') }}
                 service_description             HTTP
                 check_command                   check_tcp!80
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ') }}
                 service_description             HTTPS
                 check_command                   check_tcp!443
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mail |join(', ') }}
                 service_description             IMAP
                 check_command                   check_imap
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mail |join(', ') }}
                 service_description             IMAPS
                 check_command                   check_imaps
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mail |join(', ') }}
                 service_description             SMTP
                 check_command                   check_smtp
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mail |join(', ') }}
                 service_description             SMTPS
                 check_command                   check_smtps
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_mail |join(', ') }}
                 service_description             SSMTP
                 check_command                   check_ssmtp
-                notifications_enabled           1
+                notifications_enabled           0
         }
         # WEB CHECKS
         define service{
@@ -1725,28 +1733,35 @@
                 host_name                       {{ nagios_clients_http |join(', ')  }}
                 service_description             HTTP basic vhost HTML
                 check_command                   check_http!{{ dns_name }}/index.html
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ')  }}
                 service_description             HTTP basic vhost PHP
                 check_command                   check_http!{{ dns_name }}/index.php
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ')  }}
                 service_description             HTTPS basic vhost
                 check_command                   check_https_url
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ')  }}
                 service_description             HTTPS cert expiry in next 30 days
                 check_command                   check_https_cert_expiry!{{ dns_name }}
-                notifications_enabled           1
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP HA IP check
+                check_command                   check_http!{{ bgp_ha_ip }}/
+                notifications_enabled           0
         }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true

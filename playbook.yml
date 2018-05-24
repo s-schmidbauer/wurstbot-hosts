@@ -215,6 +215,16 @@
     blockinfile:
       dest: /etc/pf.conf
       block: |
+            queue main on {{ ext_if }} bandwidth 100M
+            queue def parent main bandwidth 90M default
+
+            # choke abusers in a very slow queue
+            queue choke parent main bandwidth 1K min 0K max 1K qlimit 300
+
+            table <abusers> persist counters
+            table <flooders> persist counters
+            table <ha_flooders> persist counters
+
             #allow 169.254.0.0/16 for bgp
             table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 \
                                172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
@@ -237,19 +247,36 @@
             block in from urpf-failed to any
             block in quick on egress from <martians> to any
             block return out quick on egress from any to <martians>
+
+            block drop log (all) quick from <abusers>
+
             block log all
 
             pass out log quick inet
             pass in on egress inet proto icmp from any to any
 
+            # abusive usage
+            ###########################
+            # allow traffic from abusers to egress but throttle them
+            pass in quick log on egress proto tcp from <flooders> to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn 1, max-src-conn-rate 1/1, overload <abusers> flush global, pflow) set queue choke
+
+            # allow traffic from abusers to our ha ip but throttle them
+            pass in quick log on {{ ext_if }} proto tcp from <ha_flooders> to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn 1, max-src-conn-rate 1/1, overload <abusers> flush global, pflow) set queue choke
+
+            # regular rules
+            ###########################
             # allow traffic from any hosts on web and monitoring ports
-            pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} }
+            pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn 5, max-src-conn-rate 15/5, overload <flooders> flush global, pflow) queue def
 
-            # allow traffic from known hosts on some ports
-            pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  }
+            # allow traffic from known hosts on some ports. no rate limiting except from default queue.
+            pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue def
 
-            # allow traffic from any hosts to ha ip on some ports
-            pass in log on {{ ext_if }} inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} }
+            # allow traffic from any hosts to ha ip on some ports. with rate limiting.
+            pass in log on {{ ext_if }} inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn 5, max-src-conn-rate 15/5, overload <ha_flooders> flush global, pflow) queue def
 
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
@@ -475,7 +502,7 @@
   - name: acme - backup certs and keys
     shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
     register: acme_backup_results
-    ignore_errors: true  
+    ignore_errors: true
 
   - name: acme - create new key and cert if expired
     shell: /usr/sbin/acme-client -vAD {{ dns_name }}

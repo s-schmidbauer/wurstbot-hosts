@@ -490,7 +490,7 @@
       dest: /etc/acme-client.conf
       block: |
         domain "{{ dns_name }}" {
-          alternative names { www.wurstbot.com {{ acme_aliases | join(' ') }} }
+          alternative names { {{ www_dns_name }} {{ acme_aliases | join(' ') }} }
           domain key "/etc/ssl/private/{{ dns_name }}.key"
           domain certificate "/etc/ssl/{{ dns_name }}.crt"
           domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
@@ -694,6 +694,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ dns_name }} {
+           alias {{ www_dns_name }}
            listen on egress port 80
            listen on lo port 80
            root "/"

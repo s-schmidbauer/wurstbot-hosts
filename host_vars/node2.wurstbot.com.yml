@@ -109,8 +109,9 @@ acme_aliases:
   - zabbix{{ node_number }}.wurstbot.com
   - nagios.wurstbot.com
   - nagios{{ node_number }}.wurstbot.com
-  - mail.wurstbot.com
-  - mail{{ node_number }}.wurstbot.com
+
+# HTTP
+www_dns_name: www.wurstbot.com
 
 # ZABBIX SERVER
 #3.4.7 for OpenBSD 6.3

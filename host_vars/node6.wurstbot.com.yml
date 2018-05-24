@@ -110,6 +110,9 @@ acme_aliases:
   - wiki.wurstbot.com
   - wiki{{ node_number }}.wurstbot.com
 
+# HTTP
+www_dns_name: www.wurstbot.com
+
 # ZABBIX SERVER
 #3.4.7 for OpenBSD 6.3
 #3.2.7 for OpenBSD 6.2

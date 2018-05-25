@@ -16,6 +16,12 @@
 - ansible-playbook -m setup -i inventory node1
 - ansible-playbook -i inventory playbook.yml --ask-pass
 
+## use it
+- network: pf, bird
+- web: httpd, relayd, squid, acme, php, cgi, dokuwiki
+- monitoring: nagios, zabbix
+- mail: dovecot, smtpd
+
 ## dependencies
 http(s) depends on acme
 acme depends on http and dns setup for node, related dns names (nagios, zabbix, ..)

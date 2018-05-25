@@ -16,94 +16,12 @@ extra_packages:
   - unzip-6.0p11
 
 # SYSTEM AND PACKAGE UPDATES
-update_mode: true
-
-# BIRD only on vultr
-# bgp_dev: lo1
-# bgp_ha_ip: 95.179.143.12 #required for pf.conf
-# bgp_ha_ip_mask: 32
-# bgp_as: 64660
-# bgp_neigh: 169.254.169.254
-# bgp_neigh_as: 64515
-# bgp_pass: supersecret
+update_mode: false
 
 # PF
 ext_if: re0
 
-# trusted_hosts:
-#   - 127.0.0.1
-#   - 46.36.36.48          # node2
-#   - 45.32.185.50         # node4
-#   - 45.32.152.181        # node5
-#   - 209.250.244.111      # node6
-#   - 31.201.195.130       # home
-#   - 84.207.225.37        # work
-#   - 62.195.130.48        # mg
-#
-# trusted_hosts_ports:
-#   - ssh
-#   - http
-#   - https
-#   - bgp
-#   - 3128
-#   - 3306
-#   - 3200
-#   - 465
-#   - 5666
-#   - 10050
-#   - 10051
-#   - smtp
-#   - submission
-#   - imap
-#   - imaps
-#
-# trusted_ha_hosts_ports:
-#   - 80
-#   - 9999
-#
-# all_hosts_ports:
-#   - http
-#   - https
-#   - 5666 # needed for not yet trusted defined clients
-#   - 10050 # needed for not yet trusted defined clients
-#   - 10051 # needed for not yet trusted defined clients
-#
-# #SSH
-# ssh_port: 3200
-#
-# # PHP
-# # 5.6.34 or 7.0.28 for openbsd 6.3
-# # 5.6.31 or 7.0.23 for openbsd 6.2
-# php_version: "5.6.34"
-# php_port: 6060
-
-# NRPE
-#2.15p8-no_ssl or 2.15p8 for openbsd 6.3
-#2.15p7-no_ssl or 2.15p7 for openbsd 6.2
-# nrpe_version: 2.15p8-no_ssl
-
 nagios_server: true
-# nrpe_port: 5666
-# nagios_servers:
-#   - 127.0.0.1
-#   - 46.36.36.48
-#   - 45.32.185.50
-#   - 45.32.152.181
-
-# hard coded
-# command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10
-# command[check_load]=/usr/local/libexec/nagios/check_load -w 15,10,5 -c 30,25,20
-# command[check_disk]=/usr/local/libexec/nagios/check_disk -w 20% -c 10%
-# command[check_zombie_procs]=/usr/local/libexec/nagios/check_procs -w 5 -c 10 -s Z
-# command[check_total_procs]=/usr/local/libexec/nagios/check_procs -w 150 -c 200
-
-# nrpe_commands:
-#   - "command[check_disk_root]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /"
-#   - "command[check_disk_home]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /home"
-#   - "command[check_disk_usr]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /usr"
-#   - "command[check_disk_usr_local]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /usr/local"
-#   - "command[check_disk_tmp]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /tmp"
-#   - "command[check_disk_var]=/usr/local/libexec/nagios/check_disk -w 20 -c 10 -p /var"
 
 # ACME-client
 acme_aliases:
@@ -112,32 +30,8 @@ acme_aliases:
   - nagios.wurstbot.com
   - nagios{{ node_number }}.wurstbot.com
 
-# HTTP
-# www_dns_name: www.wurstbot.com
-
 # ZABBIX SERVER
-#3.4.7 for OpenBSD 6.3
-#3.2.7 for OpenBSD 6.2
-# zabbix_version: 3.4.7
-# zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
-# zabbix_install_mode: false
-# zabbix_dns_name: zabbix.wurstbot.com
-# zabbix_servers:
-#   - node2
-#   - node4
-#   - node5
-# zabbix_clients:
-#   - node2
-#   - node4
-#   - node5
-#   - node6
-
-# DOKUWIKI
-#2017.02.19e for OpenBSD 6.3
-#2017.02.19b for OpenBSD 6.2
-# dokuwiki_dns_name: wiki.wurstbot.com
-# dokuwiki_version: 2017.02.19e
 
 # SQUID
 squid_cache_mem: 512
@@ -145,66 +39,11 @@ squid_cache_mem: 512
 # SMTPD
 smtpd_pass: supersecret
 
-# DOVECOT
-# mail_dns_name: mail.wurstbot.com
-
 # NAGIOS
 nagios_server: true
-
-# 4.3.1p0 on openbsd 6.3
-# 4.3.1 on openbsd 6.2
-# 4.3.1 nagios web on openbsd 6.2 / 6.3
-# nagios_version: "4.3.1p0"
-# nagios_web_version: "4.3.1"
-# nagios_dns_name: nagios.wurstbot.com
 nagios_password: supersecret
-# nagios_clients:
-#   - node2
-#   - node4
-#   - node5
-#   - node6
-# nagios_clients_bgp: #port 179
-#   - node5
-#   - node6
-# nagios_clients_ssh: #port 3200
-#   - node2
-#   - node4
-#   - node5
-#   - node6
-# nagios_clients_http: #port 80, 443
-#   - node2
-#   - node4
-#   - node5
-#   - node6
-# nagios_clients_squid: #port 3128
-#   - node2
-#   - node4
-#   - node5
-# nagios_clients_mysql: #port 3306
-#   - node2
-#   - node4
-#   - node5
-# nagios_clients_tor: #port 8443, 9050
-#   - node4
-# nagios_clients_mail: #port 25, 587, 143, 993
-#   - node2
-#   - node4
-#   - node5
-#   - node6
-
-# MYSQL
-#10.0.34v1 for openbsd 6.3
-#10.0.32v1 for openbsd 6.2
-# mysql_version: "10.0.34v1"
 
 # MYSQL replication related
 mysql_root_pass: "supersecret"
 mysql_repl_pass: "supersecret"
 mysql_is_master: true
-# mysql_is_slave: false
-# mysql_master_host: ""
-# mysql_repl_dbs:
-#   - zabbix
-
-#1.2.5p4 for openbsd 6.2 / 6.3
-# py_mysql_version: "1.2.5p4"

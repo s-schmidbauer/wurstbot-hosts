@@ -41,7 +41,6 @@
 
   - name: set admin user password
     shell: pass=$(echo {{ admin_pass}} | encrypt) ; usermod -p $pass {{ admin_user }}
-    ignore_errors: true
     no_log: true
 
   - name: set install url

@@ -28,6 +28,8 @@ ext_if: vio0
 acme_aliases:
   - mail.wurstbot.com
   - mail{{ node_number }}.wurstbot.com
+  - repo.wurstbot.com
+  - repo{{ node_number }}.wurstbot.com
   - wiki.wurstbot.com
   - wiki{{ node_number }}.wurstbot.com
 

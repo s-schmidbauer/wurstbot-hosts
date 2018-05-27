@@ -16,8 +16,12 @@ admin_pass: supersecret
 #   - screen-4.0.3p6
 #   - unzip-6.0p11
 
+repo_src: mirrors.ircam.fr/pub/OpenBSD
+repo_dir: /var/www/repo/pub/OpenBSD
+repo_dns_name: repo.wurstbot.com
+
 # SYSTEM AND PACKAGE UPDATES
-update_mode: true
+update_mode: false
 
 # BIRD only on vultr
 bgp_dev: lo1

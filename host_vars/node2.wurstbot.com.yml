@@ -21,8 +21,6 @@ update_mode: false
 # PF
 ext_if: re0
 
-nagios_server: true
-
 # ACME-client
 acme_aliases:
   - zabbix.wurstbot.com

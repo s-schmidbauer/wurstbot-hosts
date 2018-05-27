@@ -15,6 +15,9 @@ extra_packages:
   - screen-4.0.3p6
   - unzip-6.0p11
 
+# SYSTEM AND PACKAGE UPDATES
+update_mode: false
+
 # PF
 ext_if: vio0
 

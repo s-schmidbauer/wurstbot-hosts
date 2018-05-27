@@ -1,49 +1,52 @@
 [node2]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 [node4]
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 [node5]
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 [node6]
-node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [all_hosts]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [bird_hosts]
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [relayd_hosts]
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [squid_hosts]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [mail_hosts]
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+
+[repo_hosts]
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [wiki_hosts]
-node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [zabbix_server_hosts]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [nagios_server_hosts]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [mysql_hosts]
-node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
-node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible

@@ -37,11 +37,11 @@
 
   - name: create admin user with password
     shell: pass=$(echo {{ admin_pass }} | encrypt) ; adduser -batch {{ admin_user }} wheel 'admin' $pass
-    ignore_errors: true
     no_log: true
 
   - name: set admin user password
     shell: pass=$(echo {{ admin_pass}} | encrypt) ; usermod -p $pass {{ admin_user }}
+    ignore_errors: true
     no_log: true
 
   - name: set install url
@@ -196,7 +196,7 @@
   - name: doas - configure options
     lineinfile:
       dest: /etc/doas.conf
-      line: permit persist setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
+      line: permit nopass setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
       backup: yes
       state: present
       create: true
@@ -454,19 +454,25 @@
   - name: ssh - enable ssh
     shell: rcctl enable sshd
 
-  - name: ssh - set authorized key
+  - name: ssh - set authorized key (admin)
     authorized_key:
       user: admin
       state: present
       key: "{{ lookup('file', '~/.ssh/id_ecdsa.pub') }}"
+
+  - name: ssh - set authorized key (ansible)
+    authorized_key:
+      user: admin
+      state: present
+      key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
 
   - name: ssh - configure sshd
     blockinfile:
       dest: /etc/ssh/sshd_config
       block: |
         Port {{ ssh_port }}
-        PermitRootLogin yes
-        PasswordAuthentication yes
+        PermitRootLogin no
+        PasswordAuthentication no
         UseDNS no
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - sshd pf config"
@@ -474,6 +480,123 @@
 
   - name: ssh - reload sshd
     service: name=sshd state=reloaded
+
+  #######################################
+  # REPO
+  #######################################
+- name: configure repos
+  hosts: repo_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: repo - create repo dirs
+    file:
+      path: "{{ repo_dir }}/{{ item }}"
+      owner: root
+      group: daemon
+      state: directory
+      recurse: yes
+    with_items:
+      - 6.3/amd64
+      - 6.3/packages/amd64
+      - snapshots/amd64
+    register: repo_create_results
+
+    # rsync -av -f"+ */" -f"- *"
+
+  - name: repo - sync repo folders
+    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} .
+    with_items:
+      - "Changelogs"
+      - "doc"
+      - "LibreSSL"
+      - "OpenBGPD"
+      - "OpenNTPD"
+      - "OpenSSH"
+      - "patches"
+      - "songs"
+      - "syspatch"
+      - "tools"
+      # - "6.3/packages/amd64/" # packages is too big
+
+  - name: repo - sync repo sub folders
+    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} {{ item }}
+    with_items:
+      - "snapshots/amd64/"
+      - "6.3/ANNOUNCEMENT"
+      - "6.3/SHA256"
+      - "6.3/SHA256.sig"
+      - "6.3/ports.tar.gz"
+      - "6.3/src.tar.gz"
+      - "6.3/sys.tar.gz"
+      - "6.3/xenocara.tar.gz"
+      - "6.3/amd64/"
+      # - "6.3/packages/amd64/" # packages is too big
+
+  - name: repo - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        types {
+                include "/usr/share/misc/mime.types"
+                text/plain sig
+        }
+
+        default type text/plain
+
+        server {{ repo_dns_name }} {
+           alias repo{{ node_number }}.wurstbot.com
+           listen on egress port 80
+           listen on lo port 80
+           root "/repo"
+
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
+           directory auto index
+
+           location "/cgi-bin/man.cgi*" {
+              block return 301 "https://man.openbsd.org$REQUEST_URI"
+           }
+
+           location "/cgi-bin/cvsweb*" {
+              block return 301 "https://cvsweb.openbsd.org$REQUEST_URI"
+           }
+
+          location "/.well-known/acme-challenge/*" {
+             root "/acme"
+             root strip 2
+          }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost"
+
+  - name: httpd - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: httpd - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: httpd - started
+    service: name=slowcgi state=started
+
+  - name: httpd - enable
+    shell: rcctl enable httpd
+
+  - name: httpd - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded
 
   #######################################
   # ACME
@@ -706,6 +829,7 @@
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
 
            location "/.well-known/acme-challenge/*" {
                 root "/acme"
@@ -779,6 +903,9 @@
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
             directory {
                     index "index.php"
             }
@@ -836,7 +963,7 @@
 
   - name: squid - create log dir
     file:
-      path: /var/squid/log
+      path: /var/squid/logs
       owner: _squid
       group: _squid
       state: directory
@@ -857,30 +984,50 @@
       state: touch
     register: squid_access_log_results
 
+  - name: squid - delete existing config
+    file:
+      path: /etc/squid/squid.conf
+      state: absent
+
   - name: squid - config service
     blockinfile:
-      dest: /etc/squid/squid.cfg
+      dest: /etc/squid/squid.conf
       block: |
-          access_log daemon:/var/squid/logs/access.log squid
-          cache_log daemon:/var/squid/logs/cache.log squid
+          client_db on
+          httpd_suppress_version_string on
+          ignore_unknown_nameservers on
+          retry_on_error on
+          access_log /var/squid/logs/access.log
+          cache_log /var/squid/logs/cache.log
 
           acl home src 31.201.195.130
           acl work src 84.207.225.37
-          acl mg src 62.195.130.48
 
           acl SSL_ports port 443
+          acl Safe_ports port 80          # http
+          acl Safe_ports port 443         # https
+          acl Safe_ports port 1025-65535  # unregistered ports
+          acl CONNECT method CONNECT
 
+          http_access deny !Safe_ports
+          http_access deny CONNECT !SSL_ports
+          http_access allow localhost manager
+          http_access deny manager
+
+          http_access allow localhost
           http_access allow home
           http_access allow work
-          http_access allow mg
           http_access deny all
 
+          http_port 3128
+          coredump_dir /var/squid/cache
           cache_mem {{ squid_cache_mem }} MB
           minimum_object_size 10 KB
-          maximum_object_size 10 MB
+          maximum_object_size 8 MB
       state: present
       create: true
       backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - squid config"
     when: squid_cache_log_results is succeeded and squid_access_log_results is succeeded
     register: squid_config_results
 
@@ -1070,6 +1217,7 @@
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
 
            location "/.well-known/acme-challenge/*" {
                 root "/acme"
@@ -1449,6 +1597,9 @@
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
 
             directory {
                     index "index.php"
@@ -1832,6 +1983,9 @@
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
 
             directory {
                     index "index.php"

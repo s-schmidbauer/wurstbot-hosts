@@ -9,6 +9,21 @@
   become_method: doas
 
   tasks:
+  - name: configure hosts file
+    blockinfile:
+      dest: /etc/hosts
+      block: |
+          127.0.0.1         localhost
+          ::1               localhost
+          46.36.36.48       node2   node2.wurstbot.com
+          45.32.152.181     node4   node4.wurstbot.com
+          45.32.185.50      node5   node5.wurstbot.com
+          209.250.244.111   node6   node6.wurstbot.com
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - hosts config"
+      state: present
+      backup: yes
+      create: True
+
   - name: create adduser config
     blockinfile:
       dest: /etc/adduser.conf
@@ -37,6 +52,7 @@
 
   - name: create admin user with password
     shell: pass=$(echo {{ admin_pass }} | encrypt) ; adduser -batch {{ admin_user }} wheel 'admin' $pass
+    ignore_errors: true
     no_log: true
 
   - name: set admin user password
@@ -474,11 +490,13 @@
         PasswordAuthentication no
         UseDNS no
       backup: yes
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - sshd pf config"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - ssh config"
       validate: "/usr/sbin/sshd -T -f %s"
+    register: ssh_config_results
 
   - name: ssh - reload sshd
     service: name=sshd state=reloaded
+    when: ssh_config_results|changed
 
   #######################################
   # REPO
@@ -1399,14 +1417,14 @@
       dest: /etc/zabbix/userparameters.conf
       block: |
           # mysql
-          UserParameter=mysql.status[*],echo "show global status where Variable_name='$1';" | HOME=/var/lib/mysql/DBNAME mysql -N | awk '{print $$2}'
-          UserParameter=mysql.version,mysql -V
-          UserParameter=mysql.ping,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} ping | grep alive | wc -l | tr -d " "
-          UserParameter=mysql.uptime,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f2 -d ":" | cut -f1 -d "T" | tr -d " "
-          UserParameter=mysql.threads,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f3 -d ":" | cut -f1 -d "Q" | tr -d " "
-          UserParameter=mysql.questions,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f4 -d ":"|cut -f1 -d "S" | tr -d " "
-          UserParameter=mysql.slowqueries,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f5 -d ":" | cut -f1 -d "O" | tr -d " "
-          UserParameter=mysql.qps,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f9 -d ":" | tr -d " "
+          # UserParameter=mysql.status[*],echo "show global status where Variable_name='$1';" | HOME=/var/lib/mysql/DBNAME mysql -N | awk '{print $$2}'
+          # UserParameter=mysql.version,mysql -V
+          # UserParameter=mysql.ping,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} ping | grep alive | wc -l | tr -d " "
+          # UserParameter=mysql.uptime,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f2 -d ":" | cut -f1 -d "T" | tr -d " "
+          # UserParameter=mysql.threads,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f3 -d ":" | cut -f1 -d "Q" | tr -d " "
+          # UserParameter=mysql.questions,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f4 -d ":"|cut -f1 -d "S" | tr -d " "
+          # UserParameter=mysql.slowqueries,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f5 -d ":" | cut -f1 -d "O" | tr -d " "
+          # UserParameter=mysql.qps,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f9 -d ":" | tr -d " "
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix agent userparams config"
       create: true
@@ -1944,7 +1962,6 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true
       backup: yes
-    # with_items: '{{nagios_clients}}'
 
   - name: nagios - check config
     command: nagios -v /var/www/etc/nagios/nagios.cfg

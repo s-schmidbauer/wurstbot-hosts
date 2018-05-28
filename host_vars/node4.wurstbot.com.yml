@@ -27,8 +27,6 @@ acme_aliases:
   - zabbix{{ node_number }}.wurstbot.com
   - nagios.wurstbot.com
   - nagios{{ node_number }}.wurstbot.com
-  - mail.wurstbot.com
-  - mail{{ node_number }}.wurstbot.com
 
 # ZABBIX SERVER
 zabbix_db_pass: supersecret

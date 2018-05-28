@@ -88,10 +88,9 @@ php_port: 6060
 nrpe_version: 2.15p8-no_ssl
 nrpe_port: 5666
 nagios_servers:
-  - 127.0.0.1
-  - 46.36.36.48
-  - 45.32.185.50
-  - 45.32.152.181
+  - node2
+  - node4
+  - node5
 
 # hard coded
 # command[check_users]=/usr/local/libexec/nagios/check_users -w 5 -c 10

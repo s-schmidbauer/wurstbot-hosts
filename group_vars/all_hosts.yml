@@ -63,8 +63,11 @@ trusted_hosts_ports:
   - imaps
 
 trusted_ha_hosts_ports:
-  - 80
-  - 9999
+  - http
+  - https
+  - 3128
+  - 3200
+  - 3306
 
 all_hosts_ports:
   - http
@@ -190,6 +193,10 @@ nagios_clients_mysql: #port 3306
 #   - node4
 nagios_clients_mail: #port 25, 587, 143, 993
   - node5
+  - node6
+nagios_clients_repo: #80, 443
+  - node6
+nagios_clients_wiki: #80, 443
   - node6
 
 # MYSQL

@@ -415,21 +415,49 @@
       dest: /etc/relayd.conf
       block: |
           table <rrr_hosts> { 37.48.90.117 }
-          rrr_ipv4 = "{{ bgp_ha_ip }}"
-          #rrr_ip = "2001:19f0:5001:10d0::0"
+          table <wurstbot_http_hosts> { {{ nagios_clients_http | join(' ') }} }
+          table <wurstbot_nagios_hosts> { {{ nagios_servers | join(' ') }} }
+          table <wurstbot_mysql_hosts> { {{ nagios_clients_mysql | join(' ') }} }
+          table <wurstbot_squid_hosts> { {{ nagios_clients_squid | join(' ') }} }
+          table <wurstbot_repo_hosts> { {{ nagios_clients_repo | join(' ') }} }
+          table <wurstbot_wiki_hosts> { {{ nagios_clients_wiki | join(' ') }} }
+          table <wurstbot_zabbix_hosts> { {{ zabbix_servers | join(' ') }} }
 
-          http protocol "http" {
+          http protocol "proxy" {
               tcp { nodelay, sack, socket buffer 65536, backlog 100 }
-              #match response header set "Cache-Control" value "max-age=1814400"
+              pass request quick header "Host" value "www.riderunrumble.com" forward to <rrr_hosts>
+              pass request quick header "Host" value "www.wurstbot.com" forward to <wurstbot_http_hosts>
+              pass request quick header "Host" value "nagios.wurstbot.com" forward to <wurstbot_nagios_hosts>
+              pass request quick header "Host" value "mysql.wurstbot.com" forward to <wurstbot_mysql_hosts>
+              pass request quick header "Host" value "squid.wurstbot.com" forward to <wurstbot_squid_hosts>
+              pass request quick header "Host" value "repo.wurstbot.com" forward to <wurstbot_repo_hosts>
+              pass request quick header "Host" value "wiki.wurstbot.com" forward to <wurstbot_wiki_hosts>
+              pass request quick header "Host" value "zabbix.wurstbot.com" forward to <wurstbot_zabbix_hosts>
               return error
               pass
           }
 
-          relay "rrr_relay" {
-              listen on $rrr_ipv4 port 80
-              #listen on $rrr_ip port 80
-              protocol "http"
-              forward to <rrr_hosts> port 80 check tcp
+          relay "wurstbot_http_relay" {
+              listen on {{ bgp_ha_ip }} port 80
+              protocol "proxy"
+              forward to <rrr_hosts> port 80 check http "/" code 301
+              forward to <wurstbot_http_hosts> port 80 check http "/" code 200
+              forward to <wurstbot_nagios_hosts> port 80 check http "/" code 200
+              forward to <wurstbot_repo_hosts> port 80 check http "/" code 200
+              forward to <wurstbot_wiki_hosts> port 80 check http "/" code 200
+              forward to <wurstbot_zabbix_hosts> port 80 check http "/" code 200
+          }
+
+          relay "wurstbot_mysql_relay" {
+              listen on {{ bgp_ha_ip }} port 3306
+              protocol "proxy"
+              forward to <wurstbot_mysql_hosts> port 3306 check tcp
+          }
+
+          relay "wurstbot_squid_relay" {
+              listen on {{ bgp_ha_ip }} port 3128
+              protocol "proxy"
+              forward to <wurstbot_squid_hosts> port 3128 check tcp
           }
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
@@ -1417,14 +1445,14 @@
       dest: /etc/zabbix/userparameters.conf
       block: |
           # mysql
-          # UserParameter=mysql.status[*],echo "show global status where Variable_name='$1';" | HOME=/var/lib/mysql/DBNAME mysql -N | awk '{print $$2}'
-          # UserParameter=mysql.version,mysql -V
-          # UserParameter=mysql.ping,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} ping | grep alive | wc -l | tr -d " "
-          # UserParameter=mysql.uptime,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f2 -d ":" | cut -f1 -d "T" | tr -d " "
-          # UserParameter=mysql.threads,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f3 -d ":" | cut -f1 -d "Q" | tr -d " "
-          # UserParameter=mysql.questions,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f4 -d ":"|cut -f1 -d "S" | tr -d " "
-          # UserParameter=mysql.slowqueries,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f5 -d ":" | cut -f1 -d "O" | tr -d " "
-          # UserParameter=mysql.qps,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f9 -d ":" | tr -d " "
+          UserParameter=mysql.status[*],echo "show global status where Variable_name='$1';" | HOME=/var/lib/mysql/DBNAME mysql -N | awk '{print $$2}'
+          UserParameter=mysql.version,mysql -V
+          UserParameter=mysql.ping,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} ping | grep alive | wc -l | tr -d " "
+          UserParameter=mysql.uptime,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f2 -d ":" | cut -f1 -d "T" | tr -d " "
+          UserParameter=mysql.threads,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f3 -d ":" | cut -f1 -d "Q" | tr -d " "
+          UserParameter=mysql.questions,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f4 -d ":"|cut -f1 -d "S" | tr -d " "
+          UserParameter=mysql.slowqueries,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f5 -d ":" | cut -f1 -d "O" | tr -d " "
+          UserParameter=mysql.qps,mysqladmin -u {{ zabbix_db_user }} --password={{ zabbix_db_pass }} status | cut -f9 -d ":" | tr -d " "
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix agent userparams config"
       create: true
@@ -1936,6 +1964,34 @@
                 host_name                       {{ nagios_clients_http |join(', ')  }}
                 service_description             HTTP basic vhost PHP
                 check_command                   check_http!{{ dns_name }}/index.php
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_wiki |join(', ')  }}
+                service_description             HTTP wiki
+                check_command                   check_http!{{ dokuwiki_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_wiki |join(', ')  }}
+                service_description             HTTP repo
+                check_command                   check_http!{{ repo_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_servers |join(', ')  }}
+                service_description             HTTP nagios
+                check_command                   check_http!{{ nagios_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ zabbix_servers |join(', ')  }}
+                service_description             HTTP zabbix
+                check_command                   check_http!{{ zabbix_dns_name }}/
                 notifications_enabled           0
         }
         define service{

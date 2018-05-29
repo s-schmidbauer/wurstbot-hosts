@@ -169,6 +169,10 @@ nagios_version: "4.3.1p0"
 nagios_web_version: "4.3.1"
 nagios_dns_name: nagios.wurstbot.com
 nagios_password: supersecret
+nagios_password_guest: supersecret
+nagios_guests:
+  - mick
+  
 nagios_clients:
   - node2
   - node4

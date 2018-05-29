@@ -1783,6 +1783,39 @@
       mode: 0440
     # register: nagios_basic_auth_config_results
 
+  - name: nagios - configure basic auth for contacts
+    htpasswd:
+      path: /var/www/.nagioshtaccess
+      name: {{ item }}
+      password: "{{ nagios_password_guest }}"
+      owner: www
+      group: www
+      mode: 0440
+    with_items: {{ nagios_guests }}
+
+  - name: nagios - configure contacts
+    blockinfile:
+      dest: /etc/nagios/objects/contacts.cfg
+      block: |
+          define contact{
+              contact_name                    Mick
+              alias                           mick
+              service_notification_period     24x7
+              host_notification_period        24x7
+              service_notification_options    w,u,c,r
+              host_notification_options       d,r
+              service_notification_commands   notify-service-by-email
+              host_notification_commands      notify-host-by-email
+              email                           mick.gortenmulder@sentia.com
+          }
+          define contactgroup {
+              contactgroup_name       guests
+              members                 mick
+          }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios contacts"
+
   - name: nagios - configure commands
     blockinfile:
       dest: /etc/nagios/objects/commands.cfg
@@ -1852,6 +1885,18 @@
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios host {{ item }}"
     with_items: '{{ nagios_clients }}'
+
+  - name: nagios - configure guests hosts
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define host {
+                host_name       managedcloudsoftware.com
+                address         62.195.130.48
+        }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest hosts {{ item }}"
 
   - name: nagios - configure hostgroups
     blockinfile:
@@ -2086,6 +2131,13 @@
                 service_description             HTTP HA IP check
                 check_command                   check_http!{{ bgp_ha_ip }}/
                 notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       managedcloudsoftware.com
+                service_description             HTTP managedcloudsoftware
+                check_command                   check_http!managedcloudsoftware.com
+                notifications_enabled           1
         }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true

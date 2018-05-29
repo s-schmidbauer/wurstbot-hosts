@@ -1748,7 +1748,6 @@
     service: name=httpd state=reloaded
     when: httpd_result is succeeded
 
-
   #######################################
   # NAGIOS
   #######################################
@@ -1786,19 +1785,23 @@
   - name: nagios - configure basic auth for contacts
     htpasswd:
       path: /var/www/.nagioshtaccess
-      name: {{ item }}
+      name: "{{ item }}"
       password: "{{ nagios_password_guest }}"
       owner: www
       group: www
       mode: 0440
-    with_items: {{ nagios_guests }}
+    with_items: "{{ nagios_guests }}"
 
   - name: nagios - configure contacts
     blockinfile:
       dest: /etc/nagios/objects/contacts.cfg
       block: |
+          define contactgroup {
+              contactgroup_name       guests
+              members                 mick
+          }
           define contact{
-              contact_name                    Mick
+              contact_name                    mick
               alias                           mick
               service_notification_period     24x7
               host_notification_period        24x7
@@ -1807,10 +1810,6 @@
               service_notification_commands   notify-service-by-email
               host_notification_commands      notify-host-by-email
               email                           mick.gortenmulder@sentia.com
-          }
-          define contactgroup {
-              contactgroup_name       guests
-              members                 mick
           }
       create: true
       backup: yes
@@ -1891,12 +1890,13 @@
       dest: /etc/nagios/objects/localhost.cfg
       block: |
         define host {
+                use openbsd-server
                 host_name       managedcloudsoftware.com
                 address         62.195.130.48
         }
       create: true
       backup: yes
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest hosts {{ item }}"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest hosts"
 
   - name: nagios - configure hostgroups
     blockinfile:

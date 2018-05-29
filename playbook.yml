@@ -1850,8 +1850,8 @@
               email                           suzannemateboer@gmail.com
           }
           define contact{
-              contact_name                    izzy
-              alias                           izzy
+              contact_name                    izzi
+              alias                           izzi
               service_notification_period     24x7
               host_notification_period        24x7
               service_notification_options    w,u,c,r
@@ -2222,35 +2222,35 @@
                 host_name                       www.managedcloudsoftware.com
                 service_description             HTTP www.managedcloudsoftware
                 check_command                   check_http!www.managedcloudsoftware.com
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       www.shotbysuzanne.com
                 service_description             HTTP www.shotbysuzanne.com
                 check_command                   check_http!www.shotbysuzanne.com
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       www.riderunrumble.com
                 service_description             HTTP www.riderunrumble.com
                 check_command                   check_http!www.riderunrumble.com
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       automato.io
                 service_description             HTTP automato.io
                 check_command                   check_http!automato.io
-                notifications_enabled           1
+                notifications_enabled           0
         }
         define service{
                 use                             local-service
                 host_name                       www.casha.nl
                 service_description             HTTP www.casha.nl
                 check_command                   check_http!www.casha.nl
-                notifications_enabled           1
+                notifications_enabled           0
         }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true

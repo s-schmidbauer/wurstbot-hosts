@@ -1891,7 +1891,7 @@
       block: |
         define host {
                 use                 openbsd-server
-                contactgroup_name   guests
+                contact_groups      guests
                 host_name           managedcloudsoftware.com
                 address             62.195.130.48
         }

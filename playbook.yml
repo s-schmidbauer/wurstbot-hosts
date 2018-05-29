@@ -461,6 +461,7 @@
           }
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
+    register: relayd_config_results
 
   - name: relayd - check config
     command: /usr/sbin/relayd -nf /etc/relayd.conf
@@ -479,7 +480,7 @@
 
   - name: relayd - reload relayd
     service: name=relayd state=reloaded
-    when: relayd_result is succeeded
+    when: relayd_config_results|changed and relayd_result is succeeded
 
   #######################################
   # SSH
@@ -986,6 +987,77 @@
 
   - name: dokuwiki - reload httpd when config changed
     service: name=httpd state=reloaded
+
+  #######################################
+  # OWNCLOUD
+  #######################################
+- name: configure owncloud
+  hosts: owncloud_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: owncloud - install
+    openbsd_pkg: name=owncloud-{{ owncloud_version }} state=present
+
+  - name: owncloud client - install
+    openbsd_pkg: name=owncloudclient-{{ owncloud_client_version }} state=present
+
+  - name: owncloud - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ owncloud_dns_name }} {
+           alias owncloud{{ node_number }}.wurstbot.com
+           listen on egress port 80
+           listen on lo port 80
+           root "/owncloud"
+
+           # listen on lo port 443
+           # listen on egress tls port 443
+           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           # tls key "/etc/ssl/private/{{ dns_name }}.key"
+           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
+           directory index "index.php"
+           connection max request body 537919488
+
+            location "/db_structure.xml" { block }
+            location "/.ht*"             { block }
+            location "/README"           { block }
+            location "/data*"            { block }
+            location "/config*"          { block }
+
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+
+            location "/.well-known/acme-challenge/*" {
+                root "/acme"
+                root strip 2
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost"
+    register: owncloud_web_config_results
+
+  - name: owncloud - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+    when: owncloud_web_config_results|changed
+
+  - name: owncloud - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: owncloud - reload httpd when config changed
+    service: name=httpd state=reloaded
+    when: owncloud_web_config_results|changed and httpd_result is succeeded
 
   #######################################
   # SQUID

@@ -32,6 +32,8 @@ acme_aliases:
   - repo{{ node_number }}.wurstbot.com
   - wiki.wurstbot.com
   - wiki{{ node_number }}.wurstbot.com
+  - owncloud.wurstbot.com
+  - owncloud{{ node_number }}.wurstbot.com
 
 # ZABBIX
 zabbix_db_pass: supersecret

@@ -774,6 +774,7 @@
         - php-{{ php_version }}
         - php-curl-{{ php_version }}
         - php-mysql-{{ php_version }}
+        - php-mysqli-{{ php_version }}
         - php-zip-{{ php_version }}
         - php-gd-{{ php_version }}
         - php-mcrypt-{{ php_version }}
@@ -999,10 +1000,24 @@
 
   tasks:
   - name: owncloud - install
-    openbsd_pkg: name=owncloud-{{ owncloud_version }} state=present
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - owncloud-{{ owncloud_version }}
+      - owncloudclient-{{ owncloud_client_version }}
 
-  - name: owncloud client - install
-    openbsd_pkg: name=owncloudclient-{{ owncloud_client_version }} state=present
+  - name: owncloud - make chrooted php directory
+    file:
+      path: /var/www/etc/php-5.6
+      state: directory
+
+  - name: owncloud - copy php extensions to chrooted php directory
+    shell: cp /etc/php-5.6.sample/* /var/www/etc/php-5.6/
+
+  - name: owncloud - copy php.ini to chrooted directory
+    copy:
+      src: /etc/php-5.6.ini
+      dest: /var/www/etc/php-5.6.ini
+      remote_src: yes
 
   - name: owncloud - configure httpd vhost
     blockinfile:
@@ -1565,8 +1580,6 @@
     with_items:
       - zabbix-server-{{ zabbix_version}}-mysql
       - zabbix-web
-      - php-gd
-      - php-mysqli
 
   - name: zabbix - configure php.ini
     blockinfile:

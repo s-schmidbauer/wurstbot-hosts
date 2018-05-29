@@ -1890,9 +1890,10 @@
       dest: /etc/nagios/objects/localhost.cfg
       block: |
         define host {
-                use openbsd-server
-                host_name       managedcloudsoftware.com
-                address         62.195.130.48
+                use                 openbsd-server
+                contactgroup_name   guests
+                host_name           managedcloudsoftware.com
+                address             62.195.130.48
         }
       create: true
       backup: yes

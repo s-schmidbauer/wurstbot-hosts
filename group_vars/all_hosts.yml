@@ -149,6 +149,7 @@ dokuwiki_version: 2017.02.19e
 owncloud_dns_name: owncloud.wurstbot.com
 owncloud_version: 10.0.7
 owncloud_client_version: 2.4.1
+owncloud_max_upload: 537919488
 
 # SQUID
 squid_cache_mem: 256

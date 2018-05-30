@@ -1039,7 +1039,7 @@
            # hsts
 
            directory index "index.php"
-           connection max request body 537919488
+           connection max request body {{ owncloud_max_upload }}
 
             location "/db_structure.xml" { block }
             location "/.ht*"             { block }

@@ -1897,37 +1897,14 @@
       block: |
         define host {
                 use                 openbsd-server
-                contact_groups      group_mick
-                host_name           www.managedcloudsoftware.com
-                address             62.195.130.48
-        }
-        define host {
-                use                 openbsd-server
-                contact_groups      group_jaro
-                host_name           automato.io
-                address             52.85.255.67
-        }
-        define host {
-                use                 openbsd-server
-                contact_groups      group_suzi
-                host_name           www.shotbysuzanne.com
-                address             52.215.5.34
-        }
-        define host {
-                use                 openbsd-server
-                contact_groups      group_izzi
-                host_name           www.riderunrumble.com
-                address             37.48.90.117
-        }
-        define host {
-                use                 openbsd-server
-                contact_groups      group_piet
-                host_name           www.casha.nl
-                address             141.138.168.128
+                contact_groups      group_{{ item.key }}
+                host_name           {{ item.value.nagios_guest_host }}
+                address             {{ item.value.nagios_guest_ip }}
         }
       create: true
       backup: yes
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest hosts"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }}"
+    with_dict: '{{ nagios_guests }}'
 
   - name: nagios - configure hostgroups
     blockinfile:
@@ -2163,44 +2140,25 @@
                 check_command                   check_http!{{ bgp_ha_ip }}/
                 notifications_enabled           0
         }
-        define service{
-                use                             local-service
-                host_name                       www.managedcloudsoftware.com
-                service_description             HTTP www.managedcloudsoftware
-                check_command                   check_http!www.managedcloudsoftware.com
-                notifications_enabled           0
-        }
-        define service{
-                use                             local-service
-                host_name                       www.shotbysuzanne.com
-                service_description             HTTP www.shotbysuzanne.com
-                check_command                   check_http!www.shotbysuzanne.com
-                notifications_enabled           0
-        }
-        define service{
-                use                             local-service
-                host_name                       www.riderunrumble.com
-                service_description             HTTP www.riderunrumble.com
-                check_command                   check_http!www.riderunrumble.com
-                notifications_enabled           0
-        }
-        define service{
-                use                             local-service
-                host_name                       automato.io
-                service_description             HTTP automato.io
-                check_command                   check_http!automato.io
-                notifications_enabled           0
-        }
-        define service{
-                use                             local-service
-                host_name                       www.casha.nl
-                service_description             HTTP www.casha.nl
-                check_command                   check_http!www.casha.nl
-                notifications_enabled           0
-        }
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
       create: true
       backup: yes
+
+  - name: nagios - configure guest services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             HTTP {{ item.value.nagios_guest_host }}
+                check_command                   check_http!{{ item.value.nagios_guest_host }}
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }} services"
+      create: true
+      backup: yes
+    with_dict: '{{ nagios_guests }}'
 
   - name: nagios - check config
     command: nagios -v /var/www/etc/nagios/nagios.cfg

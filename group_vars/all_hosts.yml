@@ -175,18 +175,33 @@ nagios_guests:
   mick:
     nagios_guest_password: supersecret
     nagios_guest_email: mick.gortenmulder@sentia.com
+    nagios_guest_host: managedcloudsoftware.com
+    nagios_guest_ip: 62.195.130.48
   izzi:
     nagios_guest_password: supersecret
     nagios_guest_email: info@izabelabartyzel.com
+    nagios_guest_host: www.riderunrumble.com
+    nagios_guest_ip: 52.85.255.67
   jaro:
     nagios_guest_password: supersecret
     nagios_guest_email: info@automato.io
+    nagios_guest_host: automato.io
+    nagios_guest_ip: 85.56.147.118
   suzi:
     nagios_guest_password: supersecret
     nagios_guest_email: suzannemateboer@gmail.com
+    nagios_guest_host: www.shotbysuzanne.com
+    nagios_guest_ip: 52.215.5.34
   piet:
     nagios_guest_password: supersecret
     nagios_guest_email: piet.karregat@casha.nl
+    nagios_guest_host: casha.nl
+    nagios_guest_ip: 141.138.168.128
+  michael:
+    nagios_guest_password: supersecret
+    nagios_guest_email: michael@look4contract.com
+    nagios_guest_host: look4contract.com
+    nagios_guest_ip: 185.56.147.118
 
 nagios_clients:
   - node2

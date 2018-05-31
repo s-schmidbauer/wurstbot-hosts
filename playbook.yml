@@ -1655,7 +1655,7 @@
           PidFile=/var/run/zabbix_server.pid
           LogType=file
           LogFile=/var/log/zabbix/zabbix_server.log
-          DBHost=localhost
+          DBHost={{ node_ip }}
           DBName=zabbix
           DBUser={{ zabbix_db_user }}
           DBPassword={{ zabbix_db_pass }}
@@ -1698,14 +1698,14 @@
       dest: /var/www/zabbix/conf/zabbix.conf.php
       block: |
           $DB['TYPE']       = 'MYSQL';
-          $DB['SERVER']     = '127.0.0.1';
+          $DB['SERVER']     = '{{ node_ip }}';
           $DB['PORT']       = '3306';
           $DB['DATABASE']   = 'zabbix';
           $DB['USER']       = '{{ zabbix_db_user }}';
           $DB['PASSWORD']   = '{{ zabbix_db_pass }}';
-          $ZBX_SERVER       = '127.0.0.1';
+          $ZBX_SERVER       = '{{ node_ip }}';
           $ZBX_SERVER_PORT  = '10051';
-          $ZBX_SERVER_NAME  = '{{ dns_name}}';
+          $ZBX_SERVER_NAME  = '{{ dns_name }}';
       backup: yes
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix web config"
@@ -2379,7 +2379,7 @@
   - name: mysql - configure .my.cnf listener
     lineinfile:
       dest: /etc/my.cnf
-      line: listen on 0.0.0.0
+      line: listen on {{ node_ip }}
       insertafter: ^[mysqld]
     register: mysql_client_listener_results
 

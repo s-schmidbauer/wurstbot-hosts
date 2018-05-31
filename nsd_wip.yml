@@ -1,0 +1,81 @@
+  #######################################
+  # NSD
+  #######################################
+- name: configure nsd
+  hosts: dns_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: nsd - start
+    service: name=nsd state=started
+
+  - name: nsd - enable nsd
+    shell: rcctl enable nsd
+
+  - name: nsd - configure nsd master
+    blockinfile:
+      dest: /var/nsd/etc/nsd.conf
+      block: |
+          server:
+                  hide-version: yes
+                  verbosity: 2
+                  database: "" # disable database
+                  ip-address: {{ node_ip }}
+                  port: {{ nsd_port }}
+          key:
+                  name: "key"
+                  algorithm: hmac-sha256
+                  secret: "{{ nsd_secret }}"
+          pattern:
+                  name: "toslave"
+                  notify: {{ nsd_slave_host }} key
+                  provide-xfr: {{ nsd_slave_host }} key
+                  allow-axfr-fallback: yes
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nsd config master"
+      # validate: "/usr/sbin/sshd -T -f %s"
+    register: nsd_config_master_results
+    when: nsd_master == True
+
+  - name: nsd - configure nsd slave
+    blockinfile:
+      dest: /var/nsd/etc/nsd.conf
+      block: |
+          server:
+                  hide-version: yes
+                  verbosity: 2
+                  database: "" # disable database
+                  ip-address: {{ node_ip }}
+                  port: {{ nsd_port }}
+          key:
+                  name: "key"
+                  algorithm: hmac-sha256
+                  secret: "{{ nsd_secret }}"
+          pattern:
+                  name: "frommaster"
+                  allow-notify: {{ nsd_master_host }} key
+                  request-xfr: AXFR {{ nsd_master_host }}@{{ nsd_port }} key
+                  allow-axfr-fallback: yes
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nsd config slave"
+      # validate: "/usr/sbin/sshd -T -f %s"
+    register: nsd_config_slave_results
+    when: nsd_slave == True
+
+  - name: nsd - configure zones
+    blockinfile:
+      dest: /var/nsd/etc/nsd.conf
+      block: |
+
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nsd config zone {{ item.key }}"
+      # validate: "/usr/sbin/sshd -T -f %s"
+    register: nsd_config_zone_results
+    when: nsd_master == True
+
+
+  - name: nsd - reload nsd
+    service: name=nsd state=reloaded
+    when: nsd_config_master_results|changed or nsd_config_slave_results|changed

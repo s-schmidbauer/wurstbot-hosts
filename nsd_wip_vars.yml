@@ -1,0 +1,12 @@
+#NSD
+nsd_port: 53
+nsd_master: true
+nsd_master_host: ""
+nsd_slave: true
+nsd_slave_host: ""
+nsd_secret: supersecret
+nsd_zones:
+  wurstbot.com:
+    from: www
+    type: A
+    to: 95.179.143.12

@@ -170,9 +170,23 @@ nagios_version: "4.3.1p0"
 nagios_web_version: "4.3.1"
 nagios_dns_name: nagios.wurstbot.com
 nagios_password: supersecret
-nagios_password_guest: supersecret
+
 nagios_guests:
-  - mick
+  mick:
+    nagios_guest_password: supersecret
+    nagios_guest_email: mick.gortenmulder@sentia.com
+  izzi:
+    nagios_guest_password: supersecret
+    nagios_guest_email: info@izabelabartyzel.com
+  jaro:
+    nagios_guest_password: supersecret
+    nagios_guest_email: info@automato.io
+  suzi:
+    nagios_guest_password: supersecret
+    nagios_guest_email: suzannemateboer@gmail.com
+  piet:
+    nagios_guest_password: supersecret
+    nagios_guest_email: piet.karregat@casha.nl
 
 nagios_clients:
   - node2

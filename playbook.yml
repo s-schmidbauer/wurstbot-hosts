@@ -1785,108 +1785,41 @@
   - name: nagios - enable
     shell: rcctl enable nagios
 
-  - name: nagios - configure basic auth for nagiosadmin
-    htpasswd:
-      path: /var/www/.nagioshtaccess
-      name: nagiosadmin
-      password: "{{ nagios_password }}"
-      owner: www
-      group: www
-      mode: 0440
-    # register: nagios_basic_auth_config_results
+  - name: nagios - configure basic auth for admin
+    shell: echo nagiosadmin:{{ nagios_password }} | htpasswd -I /var/www/.nagioshtaccess
+    ignore_errors: true
+    no_log: true
 
   - name: nagios - configure basic auth for contacts
-    htpasswd:
-      path: /var/www/.nagioshtaccess
-      name: "{{ item }}"
-      password: "{{ nagios_password_guest }}"
-      owner: www
-      group: www
-      mode: 0440
-    with_items: "{{ nagios_guests }}"
+    shell: echo {{ item.key }}:{{ item.value.nagios_guest_password }} | htpasswd -I /var/www/.nagioshtaccess
+    ignore_errors: true
+    no_log: true
+    with_dict: "{{ nagios_guests }}"
 
   - name: nagios - configure contacts
     blockinfile:
       dest: /etc/nagios/objects/contacts.cfg
       block: |
           define contactgroup {
-              contactgroup_name       group_mick
-              members                 mick
-          }
-          define contactgroup {
-              contactgroup_name       group_jaro
-              members                 jaro
-          }
-          define contactgroup {
-              contactgroup_name       group_suzi
-              members                 suzi
-          }
-          define contactgroup {
-              contactgroup_name       group_izzi
-              members                 izzi
-          }
-          define contactgroup {
-              contactgroup_name       group_piet
-              members                 piet
+              contactgroup_name       group_{{ item.key }}
+              members                 {{ item.key }}
           }
           define contact{
-              contact_name                    mick
-              alias                           mick
+              contact_name                    {{ item.key }}
+              alias                           {{ item.key }}
               service_notification_period     24x7
               host_notification_period        24x7
               service_notification_options    w,u,c,r
               host_notification_options       d,r
               service_notification_commands   notify-service-by-email
               host_notification_commands      notify-host-by-email
-              email                           mick.gortenmulder@sentia.com
-          }
-          define contact{
-              contact_name                    jaro
-              alias                           jaro
-              service_notification_period     24x7
-              host_notification_period        24x7
-              service_notification_options    w,u,c,r
-              host_notification_options       d,r
-              service_notification_commands   notify-service-by-email
-              host_notification_commands      notify-host-by-email
-              email                           info@automato.io
-          }
-          define contact{
-              contact_name                    suzi
-              alias                           suzi
-              service_notification_period     24x7
-              host_notification_period        24x7
-              service_notification_options    w,u,c,r
-              host_notification_options       d,r
-              service_notification_commands   notify-service-by-email
-              host_notification_commands      notify-host-by-email
-              email                           suzannemateboer@gmail.com
-          }
-          define contact{
-              contact_name                    izzi
-              alias                           izzi
-              service_notification_period     24x7
-              host_notification_period        24x7
-              service_notification_options    w,u,c,r
-              host_notification_options       d,r
-              service_notification_commands   notify-service-by-email
-              host_notification_commands      notify-host-by-email
-              email                           info@izabelabartyzel.com
-          }
-          define contact{
-              contact_name                    piet
-              alias                           piet
-              service_notification_period     24x7
-              host_notification_period        24x7
-              service_notification_options    w,u,c,r
-              host_notification_options       d,r
-              service_notification_commands   notify-service-by-email
-              host_notification_commands      notify-host-by-email
-              email                           piet.karregat@casha.nl
+              email                           {{ item.value.nagios_guest_email }}
           }
       create: true
       backup: yes
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios contacts"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios contact {{ item.key }}"
+    no_log: true
+    with_dict: "{{ nagios_guests }}"
 
   - name: nagios - configure commands
     blockinfile:

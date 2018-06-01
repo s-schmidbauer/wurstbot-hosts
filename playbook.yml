@@ -1029,11 +1029,11 @@
            listen on lo port 80
            root "/owncloud"
 
-           # listen on lo port 443
-           # listen on egress tls port 443
-           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           # tls key "/etc/ssl/private/{{ dns_name }}.key"
-           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           listen on lo port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
            # hsts
@@ -1900,6 +1900,7 @@
                 contact_groups      group_{{ item.key }}
                 host_name           {{ item.value.nagios_guest_host }}
                 address             {{ item.value.nagios_guest_ip }}
+                notifications_enabled           0
         }
       create: true
       backup: yes

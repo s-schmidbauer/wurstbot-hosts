@@ -186,7 +186,7 @@ nagios_guests:
     nagios_guest_password: supersecret
     nagios_guest_email: info@automato.io
     nagios_guest_host: automato.io
-    nagios_guest_ip: 85.56.147.118
+    nagios_guest_ip: 13.32.226.117
   suzi:
     nagios_guest_password: supersecret
     nagios_guest_email: suzannemateboer@gmail.com

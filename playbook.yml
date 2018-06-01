@@ -504,11 +504,11 @@
       state: present
       key: "{{ lookup('file', '~/.ssh/id_ecdsa.pub') }}"
 
-  - name: ssh - set authorized key (ansible)
-    authorized_key:
-      user: admin
-      state: present
-      key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
+  # - name: ssh - set authorized key (ansible)
+  #   authorized_key:
+  #     user: admin
+  #     state: present
+  #     key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
 
   - name: ssh - configure sshd
     blockinfile:
@@ -1608,7 +1608,7 @@
     when: zabbix_install_mode == True
 
   - name: zabbix - grant permissions to zabbix user
-    mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password="{{ mysql_root_pass }}" state=present
+    mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password="{{ mysql_root_pass }}" host={{ node_ip }} state=present
 
   - name: zabbix - download source package for db dumps
     get_url:
@@ -1903,7 +1903,8 @@
         }
       create: true
       backup: yes
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }}"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }} host"
+    no_log: true
     with_dict: '{{ nagios_guests }}'
 
   - name: nagios - configure hostgroups
@@ -2158,6 +2159,7 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }} services"
       create: true
       backup: yes
+    no_log: true
     with_dict: '{{ nagios_guests }}'
 
   - name: nagios - check config
@@ -2293,7 +2295,7 @@
     shell: rcctl enable mysqld
 
   - name: mysql - update root password
-    mysql_user: check_implicit_admin=yes user=root host={{ item }} password={{ mysql_root_pass }} login_user=root login_password={{ mysql_root_pass }} state=present
+    mysql_user: check_implicit_admin=yes user=root host={{ item }} password={{ mysql_root_pass }} login_user=root login_password={{ mysql_root_pass }} host={{ node_ip }} state=present
     with_items:
       - localhost
       - "{{ ansible_hostname }}"
@@ -2315,7 +2317,7 @@
 
     #replication user name is "database_slave"
   - name: mysql - grant replication privileges to {{ item }}_slave for replicated dbs
-    mysql_user: user={{ item }}_slave password={{ mysql_repl_pass }} priv="*.*:REPLICATION SLAVE" login_user=root login_password={{ mysql_root_pass }} state=present
+    mysql_user: user={{ item }}_slave password={{ mysql_repl_pass }} priv="*.*:REPLICATION SLAVE" login_user=root login_password={{ mysql_root_pass }} host={{ node_ip }} state=present
     with_items: '{{mysql_repl_dbs}}'
     when: mysql_is_master
     register: mysql_grant_replication_result

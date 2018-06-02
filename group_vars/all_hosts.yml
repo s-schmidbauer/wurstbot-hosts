@@ -185,42 +185,42 @@ nagios_password: supersecret
 
 nagios_guests:
   mick:
-    nagios_guest_password: 786pWnuv
+    nagios_guest_password: supersecret
     nagios_guest_email: mick.gortenmulder@sentia.com
     nagios_guest_host: managedcloudsoftware.com
     nagios_guest_ip: 62.195.130.48
     nagios_monitor_tls: true
     nagios_monitor_ssh: false
   izzi:
-    nagios_guest_password: pLE5kCLk
+    nagios_guest_password: supersecret
     nagios_guest_email: info@izabelabartyzel.com
     nagios_guest_host: www.riderunrumble.com
     nagios_guest_ip: 52.85.255.67
     nagios_monitor_tls: true
     nagios_monitor_ssh: false
   jaro:
-    nagios_guest_password: f9NANewh
+    nagios_guest_password: supersecret
     nagios_guest_email: info@automato.io
     nagios_guest_host: automato.io
     nagios_guest_ip: 13.32.226.117
     nagios_monitor_tls: true
     nagios_monitor_ssh: false
   suzi:
-    nagios_guest_password: 9BQgF7ew
+    nagios_guest_password: supersecret
     nagios_guest_email: suzannemateboer@gmail.com
     nagios_guest_host: www.shotbysuzanne.com
     nagios_guest_ip: 52.215.5.34
     nagios_monitor_tls: true
     nagios_monitor_ssh: false
   piet:
-    nagios_guest_password: FW8AMufM
+    nagios_guest_password: supersecret
     nagios_guest_email: piet.karregat@casha.nl
     nagios_guest_host: casha.nl
     nagios_guest_ip: 141.138.168.128
     nagios_monitor_tls: false
     nagios_monitor_ssh: false
   michael:
-    nagios_guest_password: 6T9bXxds
+    nagios_guest_password: supersecret
     nagios_guest_email: michael@look4contract.com
     nagios_guest_host: look4contract.com
     nagios_guest_ip: 185.56.147.118

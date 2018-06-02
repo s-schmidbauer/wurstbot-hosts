@@ -1,6 +1,40 @@
 have entries of both hosts in load balancing
 /etc/resolv.conf
 
+
+# create a new server on vultr
+- create a new vm with 1GB and 1CPU with openbsd latest
+- make sure openbsd vars are supported in our config
+- duplicate an existing latest ansible hostvars file
+- change:
+    - nodename and number
+    - ip address
+    - ext if name
+    - acme aliases. consider role vhosts
+    - install updates by enabling it by vars
+    - configure role-specific host vars, mind defaults set already.
+    - configure password vars
+    - in inventory, put into desired groups to config roles. "all_hosts" is the group for all hosts.
+
+      prep
+      ------------
+    - make dns a records for default config and role config:
+        - defaults: node{{ node_number }}, www
+        - role defaults: wiki, wiki{{ node_number }}...
+      add new host in trusted_hosts all_hosts vars
+      add new host in spamd table as long the spamd config is not better
+
+      first run
+      -------------
+    - in inventory, you have to use root user first: ansible_port=22 ansible_user=root password auth
+    - disable tls support (as long as config issue not tackled yet)
+    - run ansible-playbook with --limit hostname and --ask-pass first to provide the ssh password
+    - run subsequent playbook with:
+        - ansible_port=3200
+        - ansible_user=admin
+        - ansible ansible_ssh_private_key=~/.ssh/id_ansible
+
+
 # nice to haves
 - know all relevant config files and what vars they reference (like IPs, netmasks, MACs etc.)
 - have a simple backup of all important config files (cvs and remote)

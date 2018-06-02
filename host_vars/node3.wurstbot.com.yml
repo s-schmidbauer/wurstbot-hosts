@@ -2,34 +2,34 @@
 #python-2.7.14 for OpenBSD 6.2
 
 # BASE
-install_url: https://ftp.bit.nl/pub/OpenBSD
-dns_name: node6.wurstbot.com
-node_number: 6
-node_ip: 209.250.244.111
+install_url: https://ftp.fau.de/pub/OpenBSD
+dns_name: node3.wurstbot.com
+node_number: 3
+node_ip: 80.240.28.59
 # admin_email: s.schmidbauer@gmail.com
 # admin_user: admin
 admin_pass: supersecret
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
+use_tls: false
 
 # BIRD
 bgp_pass: supersecret
+bgp_ha_ip: 45.76.81.117
 
 # PF
 ext_if: vio0
 
-# VPN
-vpn_name: wurstbot_to_managedcloudsoftware
-vpn_peer_ip: 62.195.130.48
-vpn_local_ip: "{{ node_ip }}"
-vpn_remote_ip: 62.195.130.48
-vpn_psk: vgHPzQ7v9fj2gQrn
+# # VPN
+# vpn_name: wurstbot_to_managedcloudsoftware
+# vpn_peer_ip: 62.195.130.48
+# vpn_local_ip: "{{ node_ip }}"
+# vpn_remote_ip: 62.195.130.48
+# vpn_psk: supersecret
 
 # ACME-client
 acme_aliases:
-  - mail.wurstbot.com
-  - mail{{ node_number }}.wurstbot.com
   - repo.wurstbot.com
   - repo{{ node_number }}.wurstbot.com
   - wiki.wurstbot.com

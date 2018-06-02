@@ -9,17 +9,16 @@ node_ip: 45.32.152.181
 # admin_email: s.schmidbauer@gmail.com
 # admin_user: admin
 admin_pass: supersecret
-extra_packages:
-  - pftop
-  - rsync-3.1.3
-  - screen-4.0.3p6
-  - unzip-6.0p11
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
 
 # PF
 ext_if: vio0
+
+# BIRD
+bgp_pass: supersecret
+bgp_ha_ip: 45.76.81.117
 
 # ACME-client
 acme_aliases:

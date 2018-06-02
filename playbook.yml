@@ -16,6 +16,7 @@
           127.0.0.1         localhost
           ::1               localhost
           46.36.36.48       node2   node2.wurstbot.com
+          80.240.28.59      node3   node3.wurstbot.com
           45.32.152.181     node4   node4.wurstbot.com
           45.32.185.50      node5   node5.wurstbot.com
           209.250.244.111   node6   node6.wurstbot.com
@@ -107,13 +108,13 @@
   - name: cron - package updates
     cron:
       name: "install package updates"
-      special_time: daily
+      special_time: weekly
       job: "pkg_add -u"
 
   - name: cron - refresh certs with acme-client
     cron:
       name: "refresh certs with acme-client"
-      special_time: daily
+      special_time: weekly
       job: "acme-client {{ dns_name }} && rcctl reload httpd"
 
   - name: cron - refresh ocsp with ocspcheck
@@ -230,8 +231,8 @@
     blockinfile:
       dest: /etc/pf.conf
       block: |
-            queue main on {{ ext_if }} bandwidth 100M
-            queue def parent main bandwidth 90M default
+            queue main on {{ ext_if }} bandwidth 10M
+            queue def parent main bandwidth 10M default
 
             # choke abusers in a very slow queue
             queue choke parent main bandwidth 1K min 0K max 1K qlimit 300
@@ -304,6 +305,67 @@
   - name: pf - activate pf
     shell: pfctl -f /etc/pf.conf
     when: pf_result is succeeded
+
+  #######################################
+  # IKED
+  #######################################
+- name: configure iked
+  hosts: iked_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: iked - configure iked tunnels
+    blockinfile:
+      dest: /etc/iked.conf
+      block: |
+          ikev2 {{ vpn_name }} active esp \
+            proto tcp from {{ vpn_local_ip }} \
+            to {{ vpn_remote_ip }} \
+            peer {{ vpn_peer_ip }} \
+            psk {{ vpn_psk }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - iked config"
+      backup: yes
+      validate: "/sbin/iked -n -f %s"
+      create: true
+    register: iked_result
+
+  - name: pf - configure packet filter iked
+    blockinfile:
+      dest: /etc/pf.conf
+      owner: root
+      mode: 600
+      block: |
+          queue iked parent main bandwidth 2M
+          pass in log on {{ ext_if }} proto udp from {{ vpn_peer_ip }} to {{ vpn_local_ip }} port {500, 4500} set queue iked
+          pass out log on {{ ext_if }} proto udp from {{ vpn_local_ip }} to {{ vpn_peer_ip }} port {500, 4500} set queue iked
+          pass in log on {{ ext_if }} proto esp from {{ vpn_remote_ip }} to {{ vpn_local_ip }} set queue iked
+          pass out log on {{ ext_if }} proto esp from {{ vpn_local_ip }} to {{ vpn_remote_ip }} set queue iked
+          pass in log on enc0 proto ipencap from {{ vpn_remote_ip }} to {{ vpn_local_ip }} keep state (if-bound) set queue iked
+          pass out log on enc0 proto ipencap from {{ vpn_local_ip }} to {{ vpn_remote_ip }} keep state (if-bound) set queue iked
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - pf iked config"
+      backup: yes
+      validate: "/sbin/pfctl -n -f %s"
+    register: pf_config_result
+
+  - name: pf - check conf
+    shell: pfctl -nf /etc/pf.conf
+    register: pf_result
+
+  - name: pf - activate pf
+    shell: pfctl -f /etc/pf.conf
+    when: pf_result is succeeded
+
+  - name: iked - start
+    service: name=iked state=started
+
+  - name: iked - activate iked
+    shell: iked -f /etc/pf.conf
+    when: pf_result is succeeded and iked_result is changed
+
+  - name: iked - enable
+    shell: rcctl enable iked
 
   #######################################
   # BIRD / BGP
@@ -504,11 +566,11 @@
       state: present
       key: "{{ lookup('file', '~/.ssh/id_ecdsa.pub') }}"
 
-  # - name: ssh - set authorized key (ansible)
-  #   authorized_key:
-  #     user: admin
-  #     state: present
-  #     key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
+  - name: ssh - set authorized key (ansible)
+    authorized_key:
+      user: admin
+      state: present
+      key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
 
   - name: ssh - configure sshd
     blockinfile:
@@ -526,123 +588,6 @@
   - name: ssh - reload sshd
     service: name=sshd state=reloaded
     when: ssh_config_results|changed
-
-  #######################################
-  # REPO
-  #######################################
-- name: configure repos
-  hosts: repo_hosts
-  user: admin
-  become: true
-  become_method: doas
-
-  tasks:
-  - name: repo - create repo dirs
-    file:
-      path: "{{ repo_dir }}/{{ item }}"
-      owner: root
-      group: daemon
-      state: directory
-      recurse: yes
-    with_items:
-      - 6.3/amd64
-      - 6.3/packages/amd64
-      - snapshots/amd64
-    register: repo_create_results
-
-    # rsync -av -f"+ */" -f"- *"
-
-  - name: repo - sync repo folders
-    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} .
-    with_items:
-      - "Changelogs"
-      - "doc"
-      - "LibreSSL"
-      - "OpenBGPD"
-      - "OpenNTPD"
-      - "OpenSSH"
-      - "patches"
-      - "songs"
-      - "syspatch"
-      - "tools"
-      # - "6.3/packages/amd64/" # packages is too big
-
-  - name: repo - sync repo sub folders
-    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} {{ item }}
-    with_items:
-      - "snapshots/amd64/"
-      - "6.3/ANNOUNCEMENT"
-      - "6.3/SHA256"
-      - "6.3/SHA256.sig"
-      - "6.3/ports.tar.gz"
-      - "6.3/src.tar.gz"
-      - "6.3/sys.tar.gz"
-      - "6.3/xenocara.tar.gz"
-      - "6.3/amd64/"
-      # - "6.3/packages/amd64/" # packages is too big
-
-  - name: repo - configure httpd
-    blockinfile:
-      dest: /etc/httpd.conf
-      block: |
-        types {
-                include "/usr/share/misc/mime.types"
-                text/plain sig
-        }
-
-        default type text/plain
-
-        server {{ repo_dns_name }} {
-           alias repo{{ node_number }}.wurstbot.com
-           listen on egress port 80
-           listen on lo port 80
-           root "/repo"
-
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-
-           directory auto index
-
-           location "/cgi-bin/man.cgi*" {
-              block return 301 "https://man.openbsd.org$REQUEST_URI"
-           }
-
-           location "/cgi-bin/cvsweb*" {
-              block return 301 "https://cvsweb.openbsd.org$REQUEST_URI"
-           }
-
-          location "/.well-known/acme-challenge/*" {
-             root "/acme"
-             root strip 2
-          }
-        }
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost"
-
-  - name: httpd - check config
-    command: /usr/sbin/httpd -n
-    register: httpd_result
-    ignore_errors: yes
-
-  - name: httpd - handle failure
-    action: fail msg="httpd.conf check failed."
-    when: httpd_result|failed
-
-  - name: httpd - started
-    service: name=slowcgi state=started
-
-  - name: httpd - enable
-    shell: rcctl enable httpd
-
-  - name: httpd - reload httpd
-    service: name=httpd state=reloaded
-    when: httpd_result is succeeded
 
   #######################################
   # ACME
@@ -667,43 +612,42 @@
         }
       backup: yes
       create: true
-
-  - name: acme - backup certs and keys
-    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
-    register: acme_backup_results
-    ignore_errors: true
-
-  - name: acme - create new key and cert if expired
-    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
-    register: acme_renew_result
-    ignore_errors: true
+    when: use_tls==true
 
     #make sure the cert does not exist yet and a webserver is able to satisify the request
   - name: acme - configure cert and key
     shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    when: use_tls == true
     ignore_errors: true
 
   - name: acme - create ocsp
     shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
     register: ocsp_create_result
+    when: use_tls == true
     ignore_errors: true
 
   - name: acme - delete old key and cert if expired
     shell: rm /etc/ssl/private/{{ dns_name }}.key ; rm /etc/ssl/certs/{{ dns_name }}.*
     ignore_errors: true
     register: acme_expired_deletion_result
-    when: ocsp_create_result.stdout.find('old') != -1
+    when: ocsp_create_result.stdout.find('old') != -1 and use_tls==true
 
   - name: acme - create new key and cert if expired
     shell: /usr/sbin/acme-client -vAD {{ dns_name }}
     register: acme_renew_result
-    when: acme_expired_deletion_result is succeeded
+    when: acme_expired_deletion_result is succeeded and use_tls==true
     ignore_errors: true
 
   - name: acme - refresh ocsp if key and cert were renewed
     shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
     register: ocsp_create_result
-    when: acme_renew_result is succeeded
+    when: acme_renew_result is succeeded and use_tls==true
+    ignore_errors: true
+
+  - name: acme - backup certs and keys
+    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
+    register: acme_backup_results
+    when: acme_renew_result is succeeded and use_tls==true
     ignore_errors: true
 
   #######################################
@@ -869,15 +813,6 @@
            listen on lo port 80
            root "/"
 
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-
            location "/.well-known/acme-challenge/*" {
                 root "/acme"
                 root strip 2
@@ -894,6 +829,22 @@
         }
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost"
+
+  - name: httpd - configure httpd tls
+    blockinfile:
+      dest: /etc/httpd.conf
+      insertafter: "alias www.wurstbot.com"
+      block: |
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost tls"
+    when: use_tls==True
 
   - name: httpd - check config
     command: /usr/sbin/httpd -n
@@ -922,6 +873,130 @@
       create: true
 
   #######################################
+  # REPO
+  #######################################
+- name: configure repos
+  hosts: repo_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: repo - create repo dirs
+    file:
+      path: "{{ repo_dir }}/{{ item }}"
+      owner: root
+      group: daemon
+      state: directory
+      recurse: yes
+    with_items:
+      - 6.3/amd64
+      - 6.3/packages/amd64
+      - snapshots/amd64
+    register: repo_create_results
+
+    # rsync -av -f"+ */" -f"- *"
+
+  - name: repo - sync repo folders
+    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} .
+    with_items:
+      - "Changelogs"
+      - "doc"
+      - "LibreSSL"
+      - "OpenBGPD"
+      - "OpenNTPD"
+      - "OpenSSH"
+      - "patches"
+      - "songs"
+      - "syspatch"
+      - "tools"
+      # - "6.3/packages/amd64/" # packages is too big
+
+  - name: repo - sync repo sub folders
+    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} {{ item }}
+    with_items:
+      - "snapshots/amd64/"
+      - "6.3/ANNOUNCEMENT"
+      - "6.3/SHA256"
+      - "6.3/SHA256.sig"
+      - "6.3/ports.tar.gz"
+      - "6.3/src.tar.gz"
+      - "6.3/sys.tar.gz"
+      - "6.3/xenocara.tar.gz"
+      - "6.3/amd64/"
+      # - "6.3/packages/amd64/" # packages is too big
+
+  - name: repo - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        types {
+                include "/usr/share/misc/mime.types"
+                text/plain sig
+        }
+
+        default type text/plain
+
+        server {{ repo_dns_name }} {
+           alias repo{{ node_number }}.wurstbot.com
+           listen on egress port 80
+           listen on lo port 80
+           root "/repo"
+
+           directory auto index
+
+           location "/cgi-bin/man.cgi*" {
+              block return 301 "https://man.openbsd.org$REQUEST_URI"
+           }
+
+           location "/cgi-bin/cvsweb*" {
+              block return 301 "https://cvsweb.openbsd.org$REQUEST_URI"
+           }
+
+          location "/.well-known/acme-challenge/*" {
+             root "/acme"
+             root strip 2
+          }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost"
+
+  - name: httpd - configure httpd tls
+    blockinfile:
+      dest: /etc/httpd.conf
+      insertafter: "alias repo"
+      block: |
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost tls"
+    when: use_tls==True
+
+  - name: httpd - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: httpd - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: httpd - started
+    service: name=slowcgi state=started
+
+  - name: httpd - enable
+    shell: rcctl enable httpd
+
+  - name: httpd - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded
+
+  #######################################
   # DOKUWIKI
   #######################################
 - name: configure dokuwiki
@@ -943,15 +1018,6 @@
            listen on egress port 80
            listen on lo port 80
            root "/dokuwiki"
-
-           listen on lo port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
 
             directory {
                     index "index.php"
@@ -975,6 +1041,22 @@
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost"
     register: dokuwiki_web_config_results
+
+  - name: httpd - configure httpd tls
+    blockinfile:
+      dest: /etc/httpd.conf
+      insertafter: "alias {{ dokuwiki_dns_name }}"
+      block: |
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost tls"
+    when: use_tls==True
 
   - name: dokuwiki - check httpd config
     command: /usr/sbin/httpd -n
@@ -1029,11 +1111,11 @@
            listen on lo port 80
            root "/owncloud"
 
-           listen on lo port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # listen on lo port 443
+           # listen on egress tls port 443
+           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           # tls key "/etc/ssl/private/{{ dns_name }}.key"
+           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
            # hsts
@@ -1059,6 +1141,22 @@
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost"
     register: owncloud_web_config_results
+
+  - name: httpd - configure httpd tls
+    blockinfile:
+      dest: /etc/httpd.conf
+      insertafter: "alias {{ owncloud_dns_name }}"
+      block: |
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost tls"
+    when: use_tls==True
 
   - name: owncloud - check httpd config
     command: /usr/sbin/httpd -n
@@ -1342,15 +1440,6 @@
            listen on lo port 80
            root "/"
 
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-
            location "/.well-known/acme-challenge/*" {
                 root "/acme"
                 root strip 2
@@ -1358,6 +1447,22 @@
         }
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - mail vhost"
+
+  - name: httpd - configure httpd tls
+    blockinfile:
+      dest: /etc/httpd.conf
+      insertafter: "alias mail"
+      block: |
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
+    when: use_tls==True
 
   - name: dovecot - check config
     command: /usr/sbin/httpd -n
@@ -1411,6 +1516,7 @@
       block: |
           127.0.0.1
           46.36.36.48
+          80.240.28.59
           45.32.185.50
           45.32.152.181
           209.250.244.111
@@ -1722,11 +1828,11 @@
            listen on lo port 80
            root "/zabbix"
 
-           listen on lo port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # listen on lo port 443
+           # listen on egress tls port 443
+           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           # tls key "/etc/ssl/private/{{ dns_name }}.key"
+           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
            # hsts
@@ -2109,6 +2215,13 @@
         }
         define service{
                 use                             local-service
+                host_name                       {{ nagios_clients_owncloud |join(', ')  }}
+                service_description             HTTP repo
+                check_command                   check_http!{{ owncloud_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
                 host_name                       {{ nagios_servers |join(', ')  }}
                 service_description             HTTP nagios
                 check_command                   check_http!{{ nagios_dns_name }}/
@@ -2163,6 +2276,49 @@
     no_log: true
     with_dict: '{{ nagios_guests }}'
 
+  - name: nagios - configure guest https services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             HTTPS {{ item.value.nagios_guest_host }}
+                check_command                   check_https_url!{{ item.value.nagios_guest_host }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             HTTPS cert expiry in next 30 days
+                check_command                   check_https_cert_expiry!{{ item.value.nagios_guest_host }}
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest https {{ item.key }} services"
+      create: true
+      backup: yes
+    no_log: true
+    when: item.value.nagios_monitor_tls == true
+    with_dict: '{{ nagios_guests }}'
+
+  - name: nagios - configure guest ssh services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             SSH
+                check_command                   check_tcp!22
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest ssh {{ item.key }} services"
+      create: true
+      backup: yes
+    no_log: true
+    when: item.value.nagios_monitor_ssh == true
+    with_dict: '{{ nagios_guests }}'
+
   - name: nagios - check config
     command: nagios -v /var/www/etc/nagios/nagios.cfg
     register: nagios_result
@@ -2194,15 +2350,6 @@
            root "/nagios"
            authenticate with ".nagioshtaccess"
 
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-
             directory {
                     index "index.php"
             }
@@ -2228,6 +2375,22 @@
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
+
+  - name: httpd - configure httpd tls
+    blockinfile:
+      dest: /etc/httpd.conf
+      insertafter: "alias nagios"
+      block: |
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
+    when: use_tls==True
 
   - name: nagios - check httpd config
     command: /usr/sbin/httpd -n

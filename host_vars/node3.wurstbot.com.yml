@@ -12,21 +12,13 @@ admin_pass: supersecret
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
-use_tls: false
 
 # BIRD
-bgp_pass: supersecret
 bgp_ha_ip: 45.76.81.117
+bgp_pass: supersecret
 
 # PF
 ext_if: vio0
-
-# # VPN
-# vpn_name: wurstbot_to_managedcloudsoftware
-# vpn_peer_ip: 62.195.130.48
-# vpn_local_ip: "{{ node_ip }}"
-# vpn_remote_ip: 62.195.130.48
-# vpn_psk: supersecret
 
 # ACME-client
 acme_aliases:

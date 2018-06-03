@@ -233,6 +233,7 @@
       block: |
             queue main on {{ ext_if }} bandwidth 10M
             queue def parent main bandwidth 10M default
+            queue iked parent main bandwidth {{ vpn_bandwidth }}
 
             # choke abusers in a very slow queue
             queue choke parent main bandwidth 1K min 0K max 1K qlimit 300
@@ -320,16 +321,18 @@
     blockinfile:
       dest: /etc/iked.conf
       block: |
-          ikev2 {{ vpn_name }} active esp \
-            proto tcp from {{ vpn_local_ip }} \
-            to {{ vpn_remote_ip }} \
-            peer {{ vpn_peer_ip }} \
-            psk {{ vpn_psk }}
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - iked config"
+          ikev2 {{ item.key }} active esp \
+             proto tcp \
+             from {{ item.value.vpn_local_ip }} \
+             to {{ item.value.vpn_remote_ip }} \
+             peer {{ item.value.vpn_peer_ip }} \
+             psk {{ item.value.vpn_psk }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - iked {{ item.key }} config"
       backup: yes
       validate: "/sbin/iked -n -f %s"
       create: true
     register: iked_result
+    with_dict: "{{ iked_tunnels }}"
 
   - name: pf - configure packet filter iked
     blockinfile:
@@ -337,17 +340,18 @@
       owner: root
       mode: 600
       block: |
-          queue iked parent main bandwidth 2M
-          pass in log on {{ ext_if }} proto udp from {{ vpn_peer_ip }} to {{ vpn_local_ip }} port {500, 4500} set queue iked
-          pass out log on {{ ext_if }} proto udp from {{ vpn_local_ip }} to {{ vpn_peer_ip }} port {500, 4500} set queue iked
-          pass in log on {{ ext_if }} proto esp from {{ vpn_remote_ip }} to {{ vpn_local_ip }} set queue iked
-          pass out log on {{ ext_if }} proto esp from {{ vpn_local_ip }} to {{ vpn_remote_ip }} set queue iked
-          pass in log on enc0 proto ipencap from {{ vpn_remote_ip }} to {{ vpn_local_ip }} keep state (if-bound) set queue iked
-          pass out log on enc0 proto ipencap from {{ vpn_local_ip }} to {{ vpn_remote_ip }} keep state (if-bound) set queue iked
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - pf iked config"
+          queue iked_{{ item.key}} parent iked bandwidth {{ item.value.vpn_tunnel_bandwidth }}
+          pass in log on {{ ext_if }} proto udp from {{ item.value.vpn_peer_ip }} to {{ item.value.vpn_local_ip }} port {500, 4500} set queue iked_{{ item.key}}
+          pass out log on {{ ext_if }} proto udp from {{ item.value.vpn_local_ip }} to {{ item.value.vpn_peer_ip }} port {500, 4500} set queue iked_{{ item.key}}
+          pass in log on {{ ext_if }} proto esp from {{ item.value.vpn_remote_ip }} to {{ item.value.vpn_local_ip }} set queue iked_{{ item.key}}
+          pass out log on {{ ext_if }} proto esp from {{ item.value.vpn_local_ip }} to {{ item.value.vpn_remote_ip }} set queue iked_{{ item.key}}
+          pass in log on {{ vpn_if }} proto ipencap from {{ item.value.vpn_remote_ip }} to {{ item.value.vpn_local_ip }} keep state (if-bound) set queue iked_{{ item.key}}
+          pass out log on {{ vpn_if }} proto ipencap from {{ item.value.vpn_local_ip }} to {{ item.value.vpn_remote_ip }} keep state (if-bound) set queue iked_{{ item.key}}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - pf iked {{ item.key }} config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
     register: pf_config_result
+    with_dict: "{{ iked_tunnels }}"
 
   - name: pf - check conf
     shell: pfctl -nf /etc/pf.conf
@@ -466,12 +470,6 @@
   become_method: doas
 
   tasks:
-  - name: relayd - start
-    service: name=relayd state=started
-
-  - name: relay - enable relayd
-    shell: rcctl enable relayd
-
   - name: relayd - configure
     blockinfile:
       dest: /etc/relayd.conf
@@ -483,6 +481,7 @@
           table <wurstbot_squid_hosts> { {{ nagios_clients_squid | join(' ') }} }
           table <wurstbot_repo_hosts> { {{ nagios_clients_repo | join(' ') }} }
           table <wurstbot_wiki_hosts> { {{ nagios_clients_wiki | join(' ') }} }
+          table <wurstbot_owncloud_hosts> { {{ nagios_clients_owncloud | join(' ') }} }
           table <wurstbot_zabbix_hosts> { {{ zabbix_servers | join(' ') }} }
 
           http protocol "proxy" {
@@ -494,6 +493,7 @@
               pass request quick header "Host" value "squid.wurstbot.com" forward to <wurstbot_squid_hosts>
               pass request quick header "Host" value "repo.wurstbot.com" forward to <wurstbot_repo_hosts>
               pass request quick header "Host" value "wiki.wurstbot.com" forward to <wurstbot_wiki_hosts>
+              pass request quick header "Host" value "owncloud.wurstbot.com" forward to <wurstbot_owncloud_hosts>
               pass request quick header "Host" value "zabbix.wurstbot.com" forward to <wurstbot_zabbix_hosts>
               return error
               pass
@@ -507,6 +507,7 @@
               forward to <wurstbot_nagios_hosts> port 80 check http "/" code 200
               forward to <wurstbot_repo_hosts> port 80 check http "/" code 200
               forward to <wurstbot_wiki_hosts> port 80 check http "/" code 200
+              forward to <wurstbot_owncloud_hosts> port 80 check http "/" code 200
               forward to <wurstbot_zabbix_hosts> port 80 check http "/" code 200
           }
 
@@ -523,6 +524,9 @@
           }
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
+      create: true
+      mode: 600
+      owner: root
     register: relayd_config_results
 
   - name: relayd - check config
@@ -534,10 +538,10 @@
     action: fail msg="relayd.conf check failed."
     when: relayd_result|failed
 
-  - name: relayd - started
+  - name: relayd - start
     service: name=relayd state=started
 
-  - name: relayd - enable
+  - name: relay - enable relayd
     shell: rcctl enable relayd
 
   - name: relayd - reload relayd
@@ -604,7 +608,7 @@
       dest: /etc/acme-client.conf
       block: |
         domain "{{ dns_name }}" {
-          alternative names { {{ www_dns_name }} {{ acme_aliases | join(' ') }} }
+          alternative names { {{ acme_aliases | join(' ') }} }
           domain key "/etc/ssl/private/{{ dns_name }}.key"
           domain certificate "/etc/ssl/{{ dns_name }}.crt"
           domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
@@ -813,6 +817,14 @@
            listen on lo port 80
            root "/"
 
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
            location "/.well-known/acme-challenge/*" {
                 root "/acme"
                 root strip 2
@@ -830,21 +842,21 @@
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost"
 
-  - name: httpd - configure httpd tls
-    blockinfile:
-      dest: /etc/httpd.conf
-      insertafter: "alias www.wurstbot.com"
-      block: |
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost tls"
-    when: use_tls==True
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias {{ www_dns_name }}"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on egress tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #   marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost tls"
+  #   when: use_tls==True
 
   - name: httpd - check config
     command: /usr/sbin/httpd -n
@@ -943,6 +955,14 @@
            listen on lo port 80
            root "/repo"
 
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
            directory auto index
 
            location "/cgi-bin/man.cgi*" {
@@ -961,21 +981,21 @@
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost"
 
-  - name: httpd - configure httpd tls
-    blockinfile:
-      dest: /etc/httpd.conf
-      insertafter: "alias repo"
-      block: |
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost tls"
-    when: use_tls==True
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias repo"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on egress tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost tls"
+  #   when: use_tls==True
 
   - name: httpd - check config
     command: /usr/sbin/httpd -n
@@ -1019,6 +1039,14 @@
            listen on lo port 80
            root "/dokuwiki"
 
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
             directory {
                     index "index.php"
             }
@@ -1042,21 +1070,21 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost"
     register: dokuwiki_web_config_results
 
-  - name: httpd - configure httpd tls
-    blockinfile:
-      dest: /etc/httpd.conf
-      insertafter: "alias {{ dokuwiki_dns_name }}"
-      block: |
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost tls"
-    when: use_tls==True
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias {{ dokuwiki_dns_name }}"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on egress tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost tls"
+  #   when: use_tls==True
 
   - name: dokuwiki - check httpd config
     command: /usr/sbin/httpd -n
@@ -1111,11 +1139,11 @@
            listen on lo port 80
            root "/owncloud"
 
-           # listen on lo port 443
-           # listen on egress tls port 443
-           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           # tls key "/etc/ssl/private/{{ dns_name }}.key"
-           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           listen on lo port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
            # hsts
@@ -1142,21 +1170,21 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost"
     register: owncloud_web_config_results
 
-  - name: httpd - configure httpd tls
-    blockinfile:
-      dest: /etc/httpd.conf
-      insertafter: "alias {{ owncloud_dns_name }}"
-      block: |
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost tls"
-    when: use_tls==True
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias {{ owncloud_dns_name }}"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on egress tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost tls"
+  #   when: use_tls==True
 
   - name: owncloud - check httpd config
     command: /usr/sbin/httpd -n
@@ -1440,6 +1468,14 @@
            listen on lo port 80
            root "/"
 
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
            location "/.well-known/acme-challenge/*" {
                 root "/acme"
                 root strip 2
@@ -1448,21 +1484,21 @@
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - mail vhost"
 
-  - name: httpd - configure httpd tls
-    blockinfile:
-      dest: /etc/httpd.conf
-      insertafter: "alias mail"
-      block: |
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
-    when: use_tls==True
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias mail"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on egress tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
+  #   when: use_tls==True
 
   - name: dovecot - check config
     command: /usr/sbin/httpd -n
@@ -1828,11 +1864,11 @@
            listen on lo port 80
            root "/zabbix"
 
-           # listen on lo port 443
-           # listen on egress tls port 443
-           # tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           # tls key "/etc/ssl/private/{{ dns_name }}.key"
-           # tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           listen on lo port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
 
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
            # hsts
@@ -2348,6 +2384,15 @@
            listen on egress port 80
            listen on lo port 80
            root "/nagios"
+
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+
            authenticate with ".nagioshtaccess"
 
             directory {
@@ -2376,21 +2421,21 @@
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
 
-  - name: httpd - configure httpd tls
-    blockinfile:
-      dest: /etc/httpd.conf
-      insertafter: "alias nagios"
-      block: |
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
-    when: use_tls==True
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias nagios"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on egress tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
+  #   when: use_tls==True
 
   - name: nagios - check httpd config
     command: /usr/sbin/httpd -n

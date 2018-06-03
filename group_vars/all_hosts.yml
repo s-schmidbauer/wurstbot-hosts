@@ -45,14 +45,6 @@ ext_if: re0
 vpn_if: enc0
 vpn_bandwidth: 5M
 
-iked_tunnels:
-  wurstbot_to_managedcloudsoftware:
-    vpn_peer_ip: 62.195.130.48
-    vpn_local_ip: "{{ node_ip }}"
-    vpn_remote_ip: 62.195.130.48
-    vpn_psk: supersecret
-    vpn_tunnel_bandwidth: 1M
-
 trusted_hosts:
   - 127.0.0.1
   - 46.36.36.48          # node2

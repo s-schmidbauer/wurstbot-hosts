@@ -16,6 +16,21 @@ update_mode: false
 # PF
 ext_if: vio0
 
+# VPN
+iked_tunnels:
+  node4_to_node6:
+    vpn_peer_ip: 209.250.244.111
+    vpn_local_ip: "{{ node_ip }}"
+    vpn_remote_ip: 209.250.244.111
+    vpn_ikesa: auth hmac-sha1 enc aes-256 group modp1024
+    vpn_childsa: enc aes-256 auth hmac-sha1 group modp1024
+    vpn_srcid: "{{ node_ip }}"
+    vpn_dstid: 209.250.244.111
+    vpn_ikelifetime: 10800
+    vpn_lifetime: 3600
+    vpn_psk: supersecret
+    vpn_tunnel_bandwidth: 1M
+
 # BIRD
 bgp_pass: supersecret
 bgp_ha_ip: 45.76.81.117

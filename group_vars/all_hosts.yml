@@ -44,6 +44,13 @@ ext_if: re0
 # child queues for each tunnel.
 vpn_if: enc0
 vpn_bandwidth: 5M
+vpn_ikesa: auth hmac-sha1 enc aes-256 group modp1024
+vpn_childsa: enc aes-256 auth hmac-sha1 group modp1024
+vpn_srcid: "{{ node_ip }}"
+vpn_ikelifetime: 10800
+vpn_lifetime: 3600
+vpn_psk: supersecret
+vpn_tunnel_bandwidth: 1M
 
 trusted_hosts:
   - 127.0.0.1

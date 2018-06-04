@@ -326,10 +326,16 @@
              from {{ item.value.vpn_local_ip }} \
              to {{ item.value.vpn_remote_ip }} \
              peer {{ item.value.vpn_peer_ip }} \
+             ikesa {{ item.value.vpn_ikesa }} \
+             childsa {{ item.value.vpn_childsa }} \
+             srcid {{ item.value.vpn_srcid }} \
+             dstid {{ item.value.vpn_dstid }} \
+             ikelifetime {{ item.value.vpn_ikelifetime }} \
+             lifetime {{ item.value.vpn_lifetime }} \
              psk {{ item.value.vpn_psk }}
       marker: "# {mark} ANSIBLE MANAGED BLOCK - iked {{ item.key }} config"
       backup: yes
-      validate: "/sbin/iked -n -f %s"
+      validate: "/sbin/iked -nf %s"
       create: true
     register: iked_result
     with_dict: "{{ iked_tunnels }}"
@@ -365,7 +371,7 @@
     service: name=iked state=started
 
   - name: iked - activate iked
-    shell: iked -f /etc/pf.conf
+    shell: iked -f /etc/iked.conf
     when: pf_result is succeeded and iked_result is changed
 
   - name: iked - enable

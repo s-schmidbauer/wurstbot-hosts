@@ -97,6 +97,11 @@ all_hosts_ports:
 #SSH
 ssh_port: 3200
 
+# GITOLITE
+git_user: git
+git_pass: supersecret
+git_keyname: id_ecdsa.pub
+
 # PHP
 # 5.6.34 or 7.0.28 for openbsd 6.3
 # 5.6.31 or 7.0.23 for openbsd 6.2

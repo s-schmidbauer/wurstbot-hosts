@@ -714,6 +714,58 @@
     when: nrpe_config_results|changed
 
   #######################################
+  # GITOLITE
+  #######################################
+- name: configure gitolite
+  hosts: gitolite_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+    - name: gitolite - install git
+      openbsd_pkg: name=git state=present
+
+    - name: gitolite - copy public key to tmp
+      copy:
+        src: "{{ lookup('file', '~/.ssh/{{ git_keyname }}') }}"
+        dest: /tmp/{{ git_keyname }}
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: gitolite - create git user with password
+      shell: pass=$(echo {{ git_pass }} | encrypt) ; adduser -batch {{ git_user }} $pass
+      ignore_errors: true
+      no_log: true
+
+    - name: gitolite - set admin user password
+      shell: pass=$(echo {{ git_pass }} | encrypt) ; usermod -p $pass {{ git_user }}
+      no_log: true
+
+    - name: gitolite - create repo dirs
+      file:
+        path: "/home/{{ git_user }}/bin"
+        owner: git
+        group: git
+        recurse: yes
+        state: directory
+
+    - name: gitolite - checkout gitolite repository
+      git:
+        repo: https://github.com/sitaramc/gitolite
+        dest: "/home/{{ git_user }}/"
+        accept_hostkey: yes
+        clone: yes
+        update: yes
+
+    - name: gitolite - install
+      shell: /home/{{ git_user }}/gitolite/install -to /home/{{ git_user }}/bin
+
+    - name: gitolite - setup with gitolite public key
+      shell: /home/{{ git_user }}/bin/gitolite setup -pk /tmp/{{ git_keyname }}
+
+  #######################################
   # PHP-FPM
   #######################################
 - name: configure php-fpm

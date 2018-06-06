@@ -146,6 +146,7 @@ zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
 zabbix_install_mode: false
 zabbix_dns_name: zabbix.wurstbot.com
+zabbix_master: 45.32.185.50
 zabbix_servers:
   - node2
   - node4
@@ -262,8 +263,6 @@ nagios_clients_squid: #port 3128
   - node4
   - node5
 nagios_clients_mysql: #port 3306
-  - node2
-  - node4
   - node5
 # nagios_clients_tor: #port 8443, 9050
 #   - node4

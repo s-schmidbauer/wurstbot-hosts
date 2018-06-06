@@ -369,7 +369,7 @@
       path: /etc/iked.conf
       owner: root
       group: wheel
-      mode: 600
+      mode: 0600
 
   - name: iked - start
     service: name=iked state=started
@@ -532,7 +532,7 @@
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
       create: true
-      mode: 600
+      mode: 0600
       owner: root
     register: relayd_config_results
 
@@ -1756,8 +1756,8 @@
     register: zabbix_create_db_results
     when: zabbix_install_mode == True
 
-  - name: zabbix - grant permissions to zabbix user
-    mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password="{{ mysql_root_pass }}" host={{ node_ip }} state=present
+  # - name: zabbix - grant permissions to zabbix user
+  #   mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password="{{ mysql_root_pass }}" host={{ zabbix_master }} state=present
 
   - name: zabbix - download source package for db dumps
     get_url:
@@ -1804,7 +1804,7 @@
           PidFile=/var/run/zabbix_server.pid
           LogType=file
           LogFile=/var/log/zabbix/zabbix_server.log
-          DBHost={{ node_ip }}
+          DBHost={{ zabbix_master }}
           DBName=zabbix
           DBUser={{ zabbix_db_user }}
           DBPassword={{ zabbix_db_pass }}
@@ -1847,7 +1847,7 @@
       dest: /var/www/zabbix/conf/zabbix.conf.php
       block: |
           $DB['TYPE']       = 'MYSQL';
-          $DB['SERVER']     = '{{ node_ip }}';
+          $DB['SERVER']     = '{{ zabbix_master }}';
           $DB['PORT']       = '3306';
           $DB['DATABASE']   = 'zabbix';
           $DB['USER']       = '{{ zabbix_db_user }}';
@@ -2534,9 +2534,13 @@
     #replication user name is "database_slave"
   - name: mysql - grant replication privileges to {{ item }}_slave for replicated dbs
     mysql_user: user={{ item }}_slave password={{ mysql_repl_pass }} priv="*.*:REPLICATION SLAVE" login_user=root login_password={{ mysql_root_pass }} host={{ node_ip }} state=present
-    with_items: '{{mysql_repl_dbs}}'
+    with_items: '{{ mysql_repl_dbs }}'
     when: mysql_is_master
     register: mysql_grant_replication_result
+
+    # ansible not working? GRANT ALL PRIVILEGES ON zabbix.* TO 'zabbix'@'%' identified by '****';
+    # - name: mysql - grant zabbix user all permissions to zabbix db
+    #   mysql_user: check_implicit_admin=yes user=zabbix host={{ zabbix_master }} priv="zabbix.*:ALL" password={{ zabbix_db_pass }} login_user=root login_password={{ mysql_root_pass }} host={{ zabbix_master }} state=present
 
   - name: mysql - master - update my.cnf to do bin-logging with to be replicated dbs
     lineinfile:

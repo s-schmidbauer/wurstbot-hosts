@@ -306,14 +306,17 @@
             ###########################
             # allow traffic from any hosts on web and monitoring ports
             pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
-            (max-src-conn 5, max-src-conn-rate 15/5, overload <flooders> flush global, pflow) queue def
+            (max-src-conn 45, max-src-conn-rate 15/5, overload <flooders> flush global, pflow) queue def
 
             # allow traffic from known hosts on some ports. no rate limiting except from default queue.
             pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue def
 
             # allow traffic from any hosts to ha ip on some ports. with rate limiting.
             pass in log on {{ ext_if }} inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} } flags S/SA keep state \
-            (max-src-conn 5, max-src-conn-rate 15/5, overload <ha_flooders> flush global, pflow) queue def
+            (max-src-conn 45, max-src-conn-rate 15/5, overload <ha_flooders> flush global, pflow) queue def
+
+            # pass out quick on external interface
+            pass out quick log on {{ ext_if }}
 
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes

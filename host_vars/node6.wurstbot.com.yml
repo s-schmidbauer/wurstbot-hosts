@@ -21,6 +21,18 @@ ext_if: vio0
 
 # VPN
 iked_tunnels:
+  node4_to_node6:
+    vpn_peer_ip: 45.32.152.181
+    vpn_local_ip: "{{ node_ip }}"
+    vpn_remote_ip: 45.32.152.181
+    vpn_ikesa: auth hmac-sha1 enc aes-256 group modp1024
+    vpn_childsa: enc aes-256 auth hmac-sha1 group modp1024
+    vpn_srcid: "{{ node_ip }}"
+    vpn_dstid: 45.32.152.181
+    vpn_ikelifetime: 10800
+    vpn_lifetime: 3600
+    vpn_psk: supersecret
+    vpn_tunnel_bandwidth: 1M
   wurstbot_to_managedcloudsoftware:
     vpn_peer_ip: 62.195.130.48
     vpn_local_ip: "{{ node_ip }}"
@@ -31,7 +43,7 @@ iked_tunnels:
     vpn_dstid: 62.195.130.48
     vpn_ikelifetime: 10800
     vpn_lifetime: 3600
-    vpn_psk: supersecret
+    vpn_psk: secret
     vpn_tunnel_bandwidth: 1M
 
 # ACME-client

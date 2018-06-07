@@ -16,6 +16,20 @@ update_mode: false
 # PF
 ext_if: re0
 
+iked_tunnels:
+  node2_to_node4:
+    vpn_peer_ip: 45.32.152.181
+    vpn_local_ip: "{{ node_ip }}"
+    vpn_remote_ip: 45.32.152.181
+    vpn_ikesa: auth hmac-sha1 enc aes-256 group modp1024
+    vpn_childsa: enc aes-256 auth hmac-sha1 group modp1024
+    vpn_srcid: "{{ node_ip }}"
+    vpn_dstid: 45.32.152.181
+    vpn_ikelifetime: 10800
+    vpn_lifetime: 3600
+    vpn_psk: supersecret
+    vpn_tunnel_bandwidth: 1M
+
 # ACME-client
 acme_aliases:
   - zabbix.wurstbot.com
@@ -39,4 +53,4 @@ nagios_password: supersecret
 # MYSQL replication related
 mysql_root_pass: "supersecret"
 mysql_repl_pass: "supersecret"
-mysql_is_master: true
+mysql_is_master: false

@@ -24,6 +24,7 @@
       state: present
       backup: yes
       create: True
+    tags: sys-config
 
   - name: create adduser config
     blockinfile:
@@ -50,15 +51,18 @@
       state: present
       backup: yes
       create: True
+    tags: sys-config
 
   - name: create admin user with password
     shell: pass=$(echo {{ admin_pass }} | encrypt) ; adduser -batch {{ admin_user }} wheel 'admin' $pass
     ignore_errors: true
     no_log: true
+    tags: sys-config
 
   - name: set admin user password
     shell: pass=$(echo {{ admin_pass}} | encrypt) ; usermod -p $pass {{ admin_user }}
     no_log: true
+    tags: sys-config
 
   - name: set install url
     lineinfile:
@@ -67,6 +71,7 @@
       line: "{{ install_url }}"
       state: present
       create: True
+    tags: sys-config
 
   - name: set default profile
     blockinfile:
@@ -79,6 +84,7 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - profile config"
       state: present
       create: True
+    tags: sys-config
 
   - name: forward root mails to admin
     blockinfile:
@@ -94,52 +100,61 @@
       create: True
       marker: "# {mark} ANSIBLE MANAGED BLOCK - aliases config"
     register: admin_email_result
+    tags: sys-config
 
   - name: activate forward root mails change
     shell: newaliases
     when: admin_email_result|changed
+    tags: sys-config
 
   - name: cron - system patches
     cron:
       name: "install system patches"
       special_time: weekly
       job: "syspatch"
+    tags: sys-config
 
   - name: cron - package updates
     cron:
       name: "install package updates"
       special_time: weekly
       job: "pkg_add -u"
+    tags: sys-config
 
   - name: cron - refresh certs with acme-client
     cron:
       name: "refresh certs with acme-client"
       special_time: weekly
       job: "acme-client {{ dns_name }} && rcctl reload httpd"
+    tags: sys-config
 
   - name: cron - refresh ocsp with ocspcheck
     cron:
       name: "refresh ocsp with ocspcheck"
       special_time: daily
       job: "ocspcheck -vN -o /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem"
+    tags: sys-config
 
   - name: cron - create zabbix agentd pid files and restart zabbix agent at reboot
     cron:
       name: "create zabbix agent pid files"
       special_time: reboot
       job: "touch /var/run/zabbix_agentd.pid ; chown _zabbix:_zabbix /var/run/zabbix_agentd.pid ; rcctl restart zabbix_agentd"
+    tags: sys-config
 
   - name: cron - create zabbix server pid files and restart zabbix server at reboot
     cron:
       name: "create zabbix server pid files"
       special_time: reboot
       job: "touch /var/run/zabbix_server.pid ; chown _zabbix:_zabbix /var/run/zabbix_server.pid ; rcctl restart zabbix_server"
+    tags: sys-config
 
   - name: cron - create zabbix proxy pid files and restart zabbix proxy at reboot
     cron:
       name: "create zabbix proxy pid files"
       special_time: reboot
       job: "touch /var/run/zabbix_proxy.pid ; chown _zabbix:_zabbix /var/run/zabbix_proxy.pid ; rcctl restart zabbix_proxy"
+    tags: sys-config
 
   #######################################
   # UPDATE SYSTEM AND PACKAGES
@@ -158,16 +173,19 @@
       shell: syspatch
       register: system_update_results
       when: update_mode==True
+      tags: sys-config
 
     - name: install package updates
       shell: pkg_add -u
       register: package_update_results
       when: update_mode==True
+      tags: sys-config
 
     - name: install extra packages
       openbsd_pkg: name={{ item }} state=present
       with_items: "{{ extra_packages }}"
       register: extra_packages_result
+      tags: sys-config
 
   #######################################
   # SYSCTL
@@ -198,6 +216,7 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - sysctl config"
       create: true
       backup: yes
+    tags: sys-config
 
   #######################################
   # DOAS
@@ -216,6 +235,7 @@
       backup: yes
       state: present
       create: true
+    tags: sys-config
 
   #######################################
   # PF
@@ -298,14 +318,17 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
+    tags: pf-config
 
   - name: pf - check conf
     shell: pfctl -nf /etc/pf.conf
     register: pf_result
+    tags: pf-config
 
   - name: pf - activate pf
     shell: pfctl -f /etc/pf.conf
     when: pf_result is succeeded
+    tags: pf-config
 
   #######################################
   # IKED
@@ -339,6 +362,7 @@
       create: true
     register: iked_config_result
     with_dict: "{{ iked_tunnels }}"
+    tags: iked
 
   - name: pf - configure packet filter iked
     blockinfile:
@@ -356,13 +380,16 @@
       validate: "pfctl -nf %s"
     register: pf_config_result
     with_dict: "{{ iked_tunnels }}"
+    tags: iked
 
   - name: pf - activate pf
     shell: pfctl -f /etc/pf.conf
     when: pf_config_result is succeeded
+    tags: iked
 
   - name: iked - enable
     shell: rcctl enable iked
+    tags: iked
 
   - name: iked - set config permissions
     file:
@@ -370,13 +397,16 @@
       owner: root
       group: wheel
       mode: 0600
+    tags: iked
 
   - name: iked - start
     service: name=iked state=started
+    tags: iked
 
   - name: iked - activate iked
     shell: iked -f /etc/iked.conf
     when: pf_config_result is succeeded and iked_config_result is changed
+    tags: iked
 
   #######################################
   # BIRD / BGP
@@ -713,57 +743,71 @@
     service: name=nrpe state=restarted
     when: nrpe_config_results|changed
 
-  #######################################
-  # GITOLITE
-  #######################################
-- name: configure gitolite
-  hosts: gitolite_hosts
-  user: admin
-  become: true
-  become_method: doas
-
-  tasks:
-    - name: gitolite - install git
-      openbsd_pkg: name=git state=present
-
-    - name: gitolite - copy public key to tmp
-      copy:
-        src: "{{ lookup('file', '~/.ssh/{{ git_keyname }}') }}"
-        dest: /tmp/{{ git_keyname }}
-        owner: root
-        group: root
-        mode: 0644
-
-    - name: gitolite - create git user with password
-      shell: pass=$(echo {{ git_pass }} | encrypt) ; adduser -batch {{ git_user }} $pass
-      ignore_errors: true
-      no_log: true
-
-    - name: gitolite - set admin user password
-      shell: pass=$(echo {{ git_pass }} | encrypt) ; usermod -p $pass {{ git_user }}
-      no_log: true
-
-    - name: gitolite - create repo dirs
-      file:
-        path: "/home/{{ git_user }}/bin"
-        owner: git
-        group: git
-        recurse: yes
-        state: directory
-
-    - name: gitolite - checkout gitolite repository
-      git:
-        repo: https://github.com/sitaramc/gitolite
-        dest: "/home/{{ git_user }}/"
-        accept_hostkey: yes
-        clone: yes
-        update: yes
-
-    - name: gitolite - install
-      shell: /home/{{ git_user }}/gitolite/install -to /home/{{ git_user }}/bin
-
-    - name: gitolite - setup with gitolite public key
-      shell: /home/{{ git_user }}/bin/gitolite setup -pk /tmp/{{ git_keyname }}
+#   #######################################
+#   # GITOLITE
+#   #######################################
+# - name: configure gitolite
+#   hosts: gitolite_hosts
+#   user: admin
+#   become: true
+#   become_method: doas
+#
+#   tasks:
+#     - name: gitolite - install git
+#       openbsd_pkg: name=git state=present
+#       tags:
+#          - git
+#
+#     - name: gitolite - create git user with password
+#       shell: pass=$(echo {{ git_pass }} | encrypt) ; adduser -batch {{ git_user }} daemon git $pass
+#       ignore_errors: true
+#       # no_log: true
+#       tags:
+#          - git
+#
+#     - name: gitolite - set admin user password
+#       shell: pass=$(echo {{ git_pass }} | encrypt) ; usermod -p $pass {{ git_user }}
+#       # no_log: true
+#       tags:
+#          - git
+#
+#     # - name: gitolite - copy public key to tmp
+#     #   copy:
+#     #     src: "~/.ssh/id_ecdsa.pub"
+#     #     dest: "/home/{{ git_user }}/id_ecdsa.pub"
+#
+#       tags:
+#          - git
+#
+#     - name: gitolite - create repo dirs
+#       file:
+#         path: "/home/{{ git_user }}/bin"
+#         owner: git
+#         group: git
+#         recurse: yes
+#         state: directory
+#       tags:
+#          - git
+#
+#     - name: gitolite - checkout gitolite repository
+#       git:
+#         repo: https://github.com/sitaramc/gitolite
+#         dest: "/home/{{ git_user }}/gitolite"
+#         accept_hostkey: yes
+#         clone: yes
+#         update: yes
+#       tags:
+#          - git
+#
+#     - name: gitolite - install
+#       shell: /home/{{ git_user }}/gitolite/install -to /home/{{ git_user }}/bin
+#       tags:
+#          - git
+#
+#     - name: gitolite - setup with gitolite public key
+#       shell: /home/{{ git_user }}/bin/gitolite setup -pk /tmp/id_ecdsa.pub
+#       tags:
+#          - git
 
   #######################################
   # PHP-FPM
@@ -2576,6 +2620,12 @@
 
   - name: mysql - remove the test database
     mysql_db: name=test login_user=root login_password={{ mysql_root_pass }} state=absent
+
+  - name: mysql - flush mysqld hosts hourly
+    cron:
+      name: "flush mysqld hosts"
+      special_time: hourly
+      job: "mysqladmin flush-hosts"
 
     #to be fixed:
     # replication only granted for localhost

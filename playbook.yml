@@ -514,6 +514,9 @@
     blockinfile:
       dest: /etc/relayd.conf
       block: |
+          interval 2
+          timeout 2000
+
           table <rrr_hosts> { 37.48.90.117 }
           table <wurstbot_http_hosts> { {{ nagios_clients_http | join(' ') }} }
           table <wurstbot_nagios_hosts> { {{ nagios_servers | join(' ') }} }
@@ -542,13 +545,13 @@
           relay "wurstbot_http_relay" {
               listen on {{ bgp_ha_ip }} port 80
               protocol "proxy"
-              forward to <rrr_hosts> port 80 check http "/" code 301
-              forward to <wurstbot_http_hosts> port 80 check http "/" code 200
-              forward to <wurstbot_nagios_hosts> port 80 check http "/" code 200
-              forward to <wurstbot_repo_hosts> port 80 check http "/" code 200
-              forward to <wurstbot_wiki_hosts> port 80 check http "/" code 200
-              forward to <wurstbot_owncloud_hosts> port 80 check http "/" code 200
-              forward to <wurstbot_zabbix_hosts> port 80 check http "/" code 200
+              forward to <rrr_hosts> port 80 mode loadbalance check http "/" code 301
+              forward to <wurstbot_http_hosts> port 80 mode loadbalance check http "/" code 200
+              forward to <wurstbot_nagios_hosts> port 80 mode loadbalance check http "/" code 200
+              forward to <wurstbot_repo_hosts> port 80 mode loadbalance check http "/" code 200
+              forward to <wurstbot_wiki_hosts> port 80 mode loadbalance check http "/" code 200
+              forward to <wurstbot_owncloud_hosts> port 80 mode loadbalance check http "/" code 200
+              forward to <wurstbot_zabbix_hosts> port 80 mode loadbalance check http "/" code 200
           }
 
           relay "wurstbot_mysql_relay" {
@@ -2628,7 +2631,7 @@
     cron:
       name: "flush mysqld hosts"
       special_time: hourly
-      job: "mysqladmin flush-hosts"
+      job: "/usr/local/bin/mysqladmin flush-hosts"
 
     #to be fixed:
     # replication only granted for localhost

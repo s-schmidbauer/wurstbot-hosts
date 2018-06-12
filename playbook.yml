@@ -205,7 +205,7 @@
         kern.shminfo.shmall=524288            # total amount of sharedmemory available (pages)
         kern.shminfo.shmmni=240               # max number of sharedmemory segments system-wide
         # for zabbix agent, double semaphore count - fixes cannot open log: cannot create semaphore set
-        kern.seminfo.semmns=240               # max number ofsemaphores system-wide
+        kern.seminfo.semmns=360               # max number ofsemaphores system-wide
         #IPv6
         net.inet.ip.forwarding=1
         net.inet6.ip6.forwarding=1
@@ -304,16 +304,16 @@
 
             # regular rules
             ###########################
+            # allow traffic from known hosts on some ports. no rate limiting except from default queue.
+            pass in quick log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue def
+
             # allow traffic from any hosts on web and monitoring ports
             pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
-            (max-src-conn 45, max-src-conn-rate 15/5, overload <flooders> flush global, pflow) queue def
-
-            # allow traffic from known hosts on some ports. no rate limiting except from default queue.
-            pass in log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue def
+            (max-src-conn {{ max_src_conn }}, max-src-conn-rate {{ max_src_conn_rate }}, overload <flooders> flush global, pflow) queue def
 
             # allow traffic from any hosts to ha ip on some ports. with rate limiting.
             pass in log on {{ ext_if }} inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} } flags S/SA keep state \
-            (max-src-conn 45, max-src-conn-rate 15/5, overload <ha_flooders> flush global, pflow) queue def
+            (max-src-conn {{ max_src_conn }}, max-src-conn-rate {{ max_src_conn_rate }}, overload <ha_flooders> flush global, pflow) queue def
 
             # pass out quick on external interface
             pass out quick log on {{ ext_if }}
@@ -321,6 +321,7 @@
       marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
       backup: yes
       validate: "/sbin/pfctl -n -f %s"
+      mode: 0600
     tags: pf-config
 
   - name: pf - check conf
@@ -363,6 +364,7 @@
       backup: yes
       validate: "iked -nf %s"
       create: true
+      mode: 0600
     register: iked_config_result
     with_dict: "{{ iked_tunnels }}"
     tags: iked
@@ -514,8 +516,8 @@
     blockinfile:
       dest: /etc/relayd.conf
       block: |
-          interval 2
-          timeout 2000
+          timeout 2
+          interval 4
 
           table <rrr_hosts> { 37.48.90.117 }
           table <wurstbot_http_hosts> { {{ nagios_clients_http | join(' ') }} }
@@ -619,6 +621,7 @@
       state: present
       key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
 
+  #TO FIX: ssh validate fails on OpenBSD 6.3: Match User breaks
   - name: ssh - configure sshd
     blockinfile:
       dest: /etc/ssh/sshd_config
@@ -627,6 +630,8 @@
         PermitRootLogin no
         PasswordAuthentication no
         UseDNS no
+        # Match User ansible
+        #     PasswordAuthentication yes
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - ssh config"
       validate: "/usr/sbin/sshd -T -f %s"
@@ -920,32 +925,24 @@
     blockinfile:
       dest: /etc/httpd.conf
       block: |
-        server {{ dns_name }} {
-           alias {{ www_dns_name }}
+        server *.wurstbot.com {
            listen on egress port 80
            listen on lo port 80
            root "/"
 
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-           # hsts
-
            location "/.well-known/acme-challenge/*" {
+                no authenticate
                 root "/acme"
                 root strip 2
            }
 
            location "*.php*" {
-              fastcgi socket ":{{ php_port }}"
+                fastcgi socket ":{{ php_port }}"
            }
 
            location "*.cgi" {
-                   root { "/" }
-                   fastcgi socket "/run/slowcgi.sock"
+                root { "/" }
+                fastcgi socket "/run/slowcgi.sock"
            }
         }
       create: true
@@ -1060,8 +1057,6 @@
 
         server {{ repo_dns_name }} {
            alias repo{{ node_number }}.wurstbot.com
-           listen on egress port 80
-           listen on lo port 80
            root "/repo"
 
            listen on lo tls port 443
@@ -1082,10 +1077,6 @@
               block return 301 "https://cvsweb.openbsd.org$REQUEST_URI"
            }
 
-          location "/.well-known/acme-challenge/*" {
-             root "/acme"
-             root strip 2
-          }
         }
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost"
@@ -1144,8 +1135,6 @@
       block: |
         server {{ dokuwiki_dns_name }} {
            alias wiki{{ node_number }}.wurstbot.com
-           listen on egress port 80
-           listen on lo port 80
            root "/dokuwiki"
 
            listen on lo tls port 443
@@ -1168,11 +1157,6 @@
 
             location "*.php*" {
                     fastcgi socket ":{{ php_port }}"
-            }
-
-            location "/.well-known/acme-challenge/*" {
-                root "/acme"
-                root strip 2
             }
         }
       create: false
@@ -1244,11 +1228,9 @@
       block: |
         server {{ owncloud_dns_name }} {
            alias owncloud{{ node_number }}.wurstbot.com
-           listen on egress port 80
-           listen on lo port 80
            root "/owncloud"
 
-           listen on lo port 443
+           listen on lo tls port 443
            listen on egress tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
@@ -1268,11 +1250,6 @@
 
             location "*.php*" {
                     fastcgi socket ":{{ php_port }}"
-            }
-
-            location "/.well-known/acme-challenge/*" {
-                root "/acme"
-                root strip 2
             }
         }
       create: false
@@ -1294,6 +1271,15 @@
   #     create: true
   #     marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost tls"
   #   when: use_tls==True
+
+  # TO BE FIXED
+  # - name: owncloud - configure dns name
+  #   lineinfile:
+  #     dest: /var/www/owncloud/config/config.php
+  #     insertbefore: ^),
+  #     line: 1 => '{{ owncloud_dns_name }}',
+  #     create: false
+  #   register: owncloud_config_results
 
   - name: owncloud - check httpd config
     command: /usr/sbin/httpd -n
@@ -1572,9 +1558,6 @@
       block: |
         server {{ mail_dns_name }} {
            alias mail{{ node_number }}.wurstbot.com
-
-           listen on egress port 80
-           listen on lo port 80
            root "/"
 
            listen on lo tls port 443
@@ -1585,10 +1568,6 @@
            # block return 301 "https://$HTTP_HOST$REQUEST_URI"
            # hsts
 
-           location "/.well-known/acme-challenge/*" {
-                root "/acme"
-                root strip 2
-           }
         }
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - mail vhost"
@@ -1969,11 +1948,9 @@
       block: |
         server {{ zabbix_dns_name }} {
            alias zabbix{{ node_number }}.wurstbot.com
-           listen on egress port 80
-           listen on lo port 80
            root "/zabbix"
 
-           listen on lo port 443
+           listen on lo tls port 443
            listen on egress tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
@@ -1990,10 +1967,6 @@
                     fastcgi socket ":{{ php_port }}"
             }
 
-            location "/.well-known/acme-challenge/*" {
-                root "/acme"
-                root strip 2
-            }
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix vhost"
@@ -2489,9 +2462,6 @@
       block: |
         server {{ nagios_dns_name }} {
            alias nagios{{ node_number }}.wurstbot.com
-
-           listen on egress port 80
-           listen on lo port 80
            root "/nagios"
 
            listen on lo tls port 443
@@ -2521,11 +2491,6 @@
                     root { "/nagios", strip 1 }
             }
 
-           location "/.well-known/acme-challenge/*" {
-                no authenticate
-                root "/acme"
-                root strip 2
-           }
         }
       create: false
       marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"

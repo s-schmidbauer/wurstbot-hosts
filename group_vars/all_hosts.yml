@@ -38,6 +38,8 @@ bgp_pass: supersecret
 
 # PF
 ext_if: re0
+max_src_conn: 45
+max_src_conn_rate: 15/5
 
 # VPN
 # bandwidth queue for all iked traffic.

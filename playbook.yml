@@ -516,7 +516,7 @@
     blockinfile:
       dest: /etc/relayd.conf
       block: |
-          timeout 2
+          timeout 2000
           interval 4
 
           table <rrr_hosts> { 37.48.90.117 }
@@ -656,7 +656,7 @@
       dest: /etc/acme-client.conf
       block: |
         domain "{{ dns_name }}" {
-          alternative names { {{ acme_aliases | join(' ') }} }
+          alternative names { {{ www_dns_name }} {{ acme_aliases | join(' ') }} }
           domain key "/etc/ssl/private/{{ dns_name }}.key"
           domain certificate "/etc/ssl/{{ dns_name }}.crt"
           domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"

@@ -545,7 +545,7 @@
       dest: /etc/syslog.conf
       block: |
         *.*     @tcp://{{ item }}:514
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - syslogd config service"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - syslogd config service {{ item }}"
       backup: yes
       state: present
     register: syslogd_config_client_results

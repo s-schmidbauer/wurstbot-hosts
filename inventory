@@ -42,6 +42,9 @@ node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_p
 node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
+[syslogd_hosts]
+node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
+
 [mail_hosts]
 node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible

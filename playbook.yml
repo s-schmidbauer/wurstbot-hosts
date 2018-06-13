@@ -348,7 +348,7 @@
     blockinfile:
       dest: /etc/iked.conf
       block: |
-          ikev2 {{ item.key }} active esp \
+          ikev2 {{ item.key }} {{ item.value.vpn_mode }} esp \
              proto tcp \
              from {{ item.value.vpn_local_ip }} \
              to {{ item.value.vpn_remote_ip }} \
@@ -501,6 +501,65 @@
 
   - name: bird - enable bird
     shell: rcctl enable bird
+
+  #######################################
+  # SYSLOGD SERVER
+  #######################################
+- name: configure syslogd server
+  hosts: syslogd_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: syslogd - configure daemon
+    blockinfile:
+      dest: /etc/rc.conf.local
+      block: |
+          syslogd_flags="-T {{ node_ip }}:514"
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - syslogd config daemon"
+      backup: yes
+    register: syslogd_config_server_results
+
+  - name: syslogd - reload syslogd
+    service: name=syslogd state=reloaded
+    when: syslogd_config_server_results|changed
+
+  - name: syslogd - start
+    service: name=syslogd state=started
+
+  - name: syslogd - enable syslogd
+    shell: rcctl enable syslogd
+
+  #######################################
+  # SYSLOGD
+  #######################################
+- name: configure syslog
+  hosts: all_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  - name: syslogd - configure syslog
+    blockinfile:
+      dest: /etc/syslog.conf
+      block: |
+        *.*     @tcp://{{ item }}:514
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - syslogd config service"
+      backup: yes
+      state: present
+    register: syslogd_config_client_results
+    with_items: {{ syslog_servers }}
+
+  - name: syslogd - reload syslogd
+    service: name=syslogd state=reloaded
+    when: syslogd_config_server_results|changed or syslogd_config_client_results|changed
+
+  - name: syslogd - start
+    service: name=syslogd state=started
+
+  - name: syslogd - enable syslogd
+    shell: rcctl enable syslogd
 
   #######################################
   # RELAYD

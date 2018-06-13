@@ -18,6 +18,7 @@ ext_if: re0
 
 iked_tunnels:
   node2_to_node4:
+    vpn_mode: active
     vpn_peer_ip: 45.32.152.181
     vpn_local_ip: "{{ node_ip }}"
     vpn_remote_ip: 45.32.152.181

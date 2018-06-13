@@ -19,6 +19,7 @@ ext_if: vio0
 # VPN
 iked_tunnels:
   node2_to_node4:
+    vpn_mode: passive
     vpn_peer_ip: 46.36.36.48
     vpn_local_ip: "{{ node_ip }}"
     vpn_remote_ip: 46.36.36.48
@@ -31,6 +32,7 @@ iked_tunnels:
     vpn_psk: supersecret
     vpn_tunnel_bandwidth: 1M
   node4_to_node6:
+    vpn_mode: active
     vpn_peer_ip: 209.250.244.111
     vpn_local_ip: "{{ node_ip }}"
     vpn_remote_ip: 209.250.244.111

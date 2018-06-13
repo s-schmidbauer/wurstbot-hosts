@@ -36,6 +36,10 @@ bgp_neigh: 169.254.169.254
 bgp_neigh_as: 64515
 bgp_pass: supersecret
 
+# SYSLOG
+syslog_servers:
+  - node2
+
 # PF
 ext_if: re0
 max_src_conn: 45
@@ -81,6 +85,7 @@ trusted_hosts_ports:
   - submission
   - imap
   - imaps
+  - 514 #syslog on tcp
 
 trusted_ha_hosts_ports:
   - http

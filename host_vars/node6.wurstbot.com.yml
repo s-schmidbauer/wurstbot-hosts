@@ -45,7 +45,7 @@ iked_tunnels:
     vpn_dstid: 62.195.130.48
     vpn_ikelifetime: 10800
     vpn_lifetime: 3600
-    vpn_psk: secret
+    vpn_psk: supersecret
     vpn_tunnel_bandwidth: 1M
 
 # ACME-client

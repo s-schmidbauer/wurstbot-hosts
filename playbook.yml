@@ -1,4 +1,3 @@
----
   ######################################
   # BASIS SETUP
   ######################################
@@ -307,6 +306,9 @@
             # allow traffic from known hosts on some ports. no rate limiting except from default queue.
             pass in quick log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue def
 
+            # vpn traffic
+            pass in quick log on {{ vpn_if }} inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue iked
+
             # allow traffic from any hosts on web and monitoring ports
             pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
             (max-src-conn {{ max_src_conn }}, max-src-conn-rate {{ max_src_conn_rate }}, overload <flooders> flush global, pflow) queue def
@@ -410,7 +412,7 @@
 
   - name: iked - activate iked
     shell: iked -f /etc/iked.conf
-    when: pf_config_result is succeeded and iked_config_result is changed
+    when: pf_config_result is changed and iked_config_result is changed
     tags: iked
 
   #######################################
@@ -535,11 +537,12 @@
   # SYSLOGD
   #######################################
 - name: configure syslog
-  hosts: all_hosts
+  hosts: syslog_clients
   user: admin
   become: true
   become_method: doas
 
+  tasks:
   - name: syslogd - configure syslog
     blockinfile:
       dest: /etc/syslog.conf
@@ -549,11 +552,11 @@
       backup: yes
       state: present
     register: syslogd_config_client_results
-    with_items: {{ syslog_servers }}
+    with_items: "{{ syslog_servers }}"
 
   - name: syslogd - reload syslogd
     service: name=syslogd state=reloaded
-    when: syslogd_config_server_results|changed or syslogd_config_client_results|changed
+    when: syslogd_config_client_results|changed
 
   - name: syslogd - start
     service: name=syslogd state=started
@@ -578,7 +581,6 @@
           timeout 2000
           interval 4
 
-          table <rrr_hosts> { 37.48.90.117 }
           table <wurstbot_http_hosts> { {{ nagios_clients_http | join(' ') }} }
           table <wurstbot_nagios_hosts> { {{ nagios_servers | join(' ') }} }
           table <wurstbot_mysql_hosts> { {{ nagios_clients_mysql | join(' ') }} }
@@ -590,7 +592,6 @@
 
           http protocol "proxy" {
               tcp { nodelay, sack, socket buffer 65536, backlog 100 }
-              pass request quick header "Host" value "www.riderunrumble.com" forward to <rrr_hosts>
               pass request quick header "Host" value "www.wurstbot.com" forward to <wurstbot_http_hosts>
               pass request quick header "Host" value "nagios.wurstbot.com" forward to <wurstbot_nagios_hosts>
               pass request quick header "Host" value "mysql.wurstbot.com" forward to <wurstbot_mysql_hosts>
@@ -599,6 +600,18 @@
               pass request quick header "Host" value "wiki.wurstbot.com" forward to <wurstbot_wiki_hosts>
               pass request quick header "Host" value "owncloud.wurstbot.com" forward to <wurstbot_owncloud_hosts>
               pass request quick header "Host" value "zabbix.wurstbot.com" forward to <wurstbot_zabbix_hosts>
+
+              match response header remove "X-Powered-By"
+              match response header set "X-Frame-Options" value "deny"
+              match response header set "X-Content-Type-Options" value "nosniff"
+              match response header set "X-XSS-Protection" value "1; mode=block"
+              match response header append "Content-Security-Policy" value "default-src 'none'"
+              match response header append "Content-Security-Policy" value "script-src 'self'"
+              match response header append "Content-Security-Policy" value "style-src 'self'"
+              match response header append "Content-Security-Policy" value "img-src 'self'"
+              match response header append "Content-Security-Policy" value "connect-src 'self'"
+              match response header append "Content-Security-Policy" value "frame-ancestors 'none'"
+
               return error
               pass
           }
@@ -606,7 +619,6 @@
           relay "wurstbot_http_relay" {
               listen on {{ bgp_ha_ip }} port 80
               protocol "proxy"
-              forward to <rrr_hosts> port 80 mode loadbalance check http "/" code 301
               forward to <wurstbot_http_hosts> port 80 mode loadbalance check http "/" code 200
               forward to <wurstbot_nagios_hosts> port 80 mode loadbalance check http "/" code 200
               forward to <wurstbot_repo_hosts> port 80 mode loadbalance check http "/" code 200
@@ -744,7 +756,7 @@
     when: ocsp_create_result.stdout.find('old') != -1 and use_tls==true
 
   - name: acme - create new key and cert if expired
-    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
     register: acme_renew_result
     when: acme_expired_deletion_result is succeeded and use_tls==true
     ignore_errors: true
@@ -1007,21 +1019,37 @@
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost"
 
-  # - name: httpd - configure httpd tls
-  #   blockinfile:
-  #     dest: /etc/httpd.conf
-  #     insertafter: "alias {{ www_dns_name }}"
-  #     block: |
-  #          listen on lo tls port 443
-  #          listen on egress tls port 443
-  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
-  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
-  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
-  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
-  #          # hsts
-  #     create: true
-  #   marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost tls"
-  #   when: use_tls==True
+  - name: httpd - git checkout www site
+    git:
+      dest: /var/www/{{ www_dns_name }}
+      repo: https://github.com/s-schmidbauer/{{ www_dns_name }}
+
+  - name: httpd - configure www vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server www.wurstbot.com {
+           alias www{{ node_number }}.wurstbot.com
+           root "/{{ www_dns_name }}"
+
+           hsts
+           listen on lo tls port 443
+           listen on egress tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           location "*.php*" {
+                fastcgi socket ":{{ php_port }}"
+           }
+
+           location "*.cgi" {
+                root { "/" }
+                fastcgi socket "/run/slowcgi.sock"
+           }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - www vhost"
 
   - name: httpd - check config
     command: /usr/sbin/httpd -n
@@ -2149,11 +2177,11 @@
         }
         define command{
               command_name      check_https_url
-              command_line      $USER1$/check_http --ssl 1.2+ -H '$HOSTADDRESS$'
+              command_line      $USER1$/check_http --ssl=1+ --sni -H '$ARG1$'
         }
-        define command{
+        define command
               command_name      check_https_cert_expiry
-              command_line      $USER1$/check_http --ssl 1.2+ -H '$HOSTADDRESS$' -u '$ARG1$' -C 30
+              command_line      $USER1$/check_http --ssl=1+ --sni -H '$ARG1$' -C 30
         }
 
       create: true
@@ -2378,6 +2406,13 @@
         }
         define service{
                 use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP www
+                check_command                   check_http!{{ www_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
                 host_name                       {{ nagios_clients_wiki |join(', ')  }}
                 service_description             HTTP wiki
                 check_command                   check_http!{{ dokuwiki_dns_name }}/
@@ -2385,7 +2420,7 @@
         }
         define service{
                 use                             local-service
-                host_name                       {{ nagios_clients_wiki |join(', ')  }}
+                host_name                       {{ nagios_clients_repo |join(', ')  }}
                 service_description             HTTP repo
                 check_command                   check_http!{{ repo_dns_name }}/
                 notifications_enabled           0
@@ -2415,7 +2450,14 @@
                 use                             local-service
                 host_name                       {{ nagios_clients_http |join(', ')  }}
                 service_description             HTTPS basic vhost
-                check_command                   check_https_url
+                check_command                   check_https_url!{{ dns_name }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTPS www vhost
+                check_command                   check_https_url!{{ www_dns_name }}
                 notifications_enabled           0
         }
         define service{

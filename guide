@@ -17,4 +17,3 @@ ansible node4 -m raw -i inventory -a "echo 'https://ftp.bit.nl/pub/OpenBSD' >> /
 
 # make a precise choice or the process will get stuck in the version selection
 ansible node4 -m raw -i inventory -a "pkg_add python-2.7.14p1" --ask-pass
-

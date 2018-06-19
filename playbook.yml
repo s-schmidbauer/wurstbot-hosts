@@ -616,6 +616,31 @@
               pass
           }
 
+          http protocol "proxy_tls" {
+              tcp { nodelay, sack, socket buffer 65536, backlog 100 }
+              pass request quick header "Host" value "www.wurstbot.com" forward to <wurstbot_http_hosts>
+              pass request quick header "Host" value "nagios.wurstbot.com" forward to <wurstbot_nagios_hosts>
+              pass request quick header "Host" value "repo.wurstbot.com" forward to <wurstbot_repo_hosts>
+              pass request quick header "Host" value "wiki.wurstbot.com" forward to <wurstbot_wiki_hosts>
+              pass request quick header "Host" value "owncloud.wurstbot.com" forward to <wurstbot_owncloud_hosts>
+              pass request quick header "Host" value "zabbix.wurstbot.com" forward to <wurstbot_zabbix_hosts>
+
+              match response header remove "X-Powered-By"
+              match response header set "X-Frame-Options" value "deny"
+              match response header set "X-Content-Type-Options" value "nosniff"
+              match response header set "X-XSS-Protection" value "1; mode=block"
+              match response header append "Content-Security-Policy" value "default-src 'none'"
+              match response header append "Content-Security-Policy" value "script-src 'self'"
+              match response header append "Content-Security-Policy" value "style-src 'self'"
+              match response header append "Content-Security-Policy" value "img-src 'self'"
+              match response header append "Content-Security-Policy" value "connect-src 'self'"
+              match response header append "Content-Security-Policy" value "frame-ancestors 'none'"
+
+              tls { no tlsv1.0, ciphers "HIGH" }
+              return error
+              pass
+          }
+
           relay "wurstbot_http_relay" {
               listen on {{ bgp_ha_ip }} port 80
               protocol "proxy"
@@ -638,12 +663,30 @@
               protocol "proxy"
               forward to <wurstbot_squid_hosts> port 3128 check tcp
           }
+
+          relay "wurstbot_https_relay" {
+              listen on {{ bgp_ha_ip }} port 443 tls
+              protocol "proxy_tls"
+              forward to <wurstbot_http_hosts> port 443 mode loadbalance check https "/" code 200
+              forward to <wurstbot_nagios_hosts> port 443 mode loadbalance check https "/" code 200
+              forward to <wurstbot_repo_hosts> port 443 mode loadbalance check https "/" code 200
+              forward to <wurstbot_wiki_hosts> port 443 mode loadbalance check https "/" code 200
+              forward to <wurstbot_owncloud_hosts> port 443 mode loadbalance check https "/" code 200
+              forward to <wurstbot_zabbix_hosts> port 443 mode loadbalance check https "/" code 200
+          }
+
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
       create: true
       mode: 0600
       owner: root
     register: relayd_config_results
+
+  - name: relayd - symlink tls cert
+    shell: cd /etc/ssl ; ln -s {{ dns_name }}.fullchain.pem {{ bgp_ha_ip }}:443.crt
+
+  - name: relayd - symlink tls key
+    shell: cd /etc/ssl/private ; ln -s {{ dns_name }}.key {{ bgp_ha_ip }}:443.key
 
   - name: relayd - check config
     command: /usr/sbin/relayd -nf /etc/relayd.conf

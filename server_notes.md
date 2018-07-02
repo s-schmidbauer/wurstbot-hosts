@@ -2,6 +2,22 @@ have entries of both hosts in load balancing
 /etc/resolv.conf
 
 
+# TLS relay
+- make a separate acme-client host, create the cert
+- symlink ha ip port 443 to certificate and key with www_dns_name from step 1
+- vhost in httpd listening on port 80 only on ext_if
+- restart httpd and check if only listening on ext_if
+- restart relayd and check if only listening on ha ip
+
+
+in relayd.conf:
+relay "wurstbot_https_relay" {
+    listen on 45.76.81.117 port 443 tls
+    protocol "proxy_tls"
+    forward to <wurstbot_http_hosts> port 80 mode loadbalance check http "/" code 200
+}
+
+
 # create a new server on vultr
 - create a new vm with 1GB and 1CPU with openbsd latest
 - make sure openbsd vars are supported in our config
@@ -431,6 +447,20 @@ scp /var/db/dhcpd.key admin@ns2:/var/db/dhcpd.key
 
 on primary, listen on em0: dhcpd -y em0 -Y em0
 on second, just receive on em0:  dhcpd -Y em0
+
+### GITOLITE
+
+requires sshd config for allowing password authentication for git
+
+after install, as user git from /home/git :
+
+node3$ ./bin/gitolite setup -pk /tmp/ansible.pub
+Initialized empty Git repository in /home/git/repositories/gitolite-admin.git/
+Initialized empty Git repository in /home/git/repositories/testing.git/
+
+
+clone from host with custom port
+git clone ssh://git@node3.wurstbot.com:3200/gitolite-admin
 
 ### NFS
 

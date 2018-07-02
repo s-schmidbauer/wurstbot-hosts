@@ -205,11 +205,15 @@
         kern.shminfo.shmmni=240               # max number of sharedmemory segments system-wide
         # for zabbix agent, double semaphore count - fixes cannot open log: cannot create semaphore set
         kern.seminfo.semmns=360               # max number ofsemaphores system-wide
-        #IPv6
+        # IPv6
         net.inet.ip.forwarding=1
         net.inet6.ip6.forwarding=1
         net.inet6.ip6.redirect=1
-        # reboot automatically after kernel panic
+        # VPN
+        net.inet.esp.enable=1
+        net.inet.ah.enable=0
+        net.inet.ipcomp.enable=1
+        # Reboot automatically after kernel panic
         ddb.panic=0
 
       marker: "# {mark} ANSIBLE MANAGED BLOCK - sysctl config"
@@ -308,6 +312,8 @@
 
             # vpn traffic
             pass in quick log on {{ vpn_if }} inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue iked
+            pass out quick log on {{ vpn_if }} inet proto tcp from {{ node_ip }} to { {{ trusted_hosts | join(', ') }} } port { {{ trusted_hosts_ports | join(', ') }}  } queue iked
+
 
             # allow traffic from any hosts on web and monitoring ports
             pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
@@ -325,6 +331,13 @@
       validate: "/sbin/pfctl -n -f %s"
       mode: 0600
     tags: pf-config
+
+  - name: pf - get abusers table
+    shell: pfctl -t abusers -T show
+    register: pf_table_abusers
+
+  - set_fact:
+      pf_table_abusers_{{ node_number }}: "{{ pf_table_abusers.stdout }}"
 
   - name: pf - check conf
     shell: pfctl -nf /etc/pf.conf
@@ -617,25 +630,8 @@
           }
 
           http protocol "proxy_tls" {
+              # use www. only cert for relayd (no sni)
               tcp { nodelay, sack, socket buffer 65536, backlog 100 }
-              pass request quick header "Host" value "www.wurstbot.com" forward to <wurstbot_http_hosts>
-              pass request quick header "Host" value "nagios.wurstbot.com" forward to <wurstbot_nagios_hosts>
-              pass request quick header "Host" value "repo.wurstbot.com" forward to <wurstbot_repo_hosts>
-              pass request quick header "Host" value "wiki.wurstbot.com" forward to <wurstbot_wiki_hosts>
-              pass request quick header "Host" value "owncloud.wurstbot.com" forward to <wurstbot_owncloud_hosts>
-              pass request quick header "Host" value "zabbix.wurstbot.com" forward to <wurstbot_zabbix_hosts>
-
-              match response header remove "X-Powered-By"
-              match response header set "X-Frame-Options" value "deny"
-              match response header set "X-Content-Type-Options" value "nosniff"
-              match response header set "X-XSS-Protection" value "1; mode=block"
-              match response header append "Content-Security-Policy" value "default-src 'none'"
-              match response header append "Content-Security-Policy" value "script-src 'self'"
-              match response header append "Content-Security-Policy" value "style-src 'self'"
-              match response header append "Content-Security-Policy" value "img-src 'self'"
-              match response header append "Content-Security-Policy" value "connect-src 'self'"
-              match response header append "Content-Security-Policy" value "frame-ancestors 'none'"
-
               tls { no tlsv1.0, ciphers "HIGH" }
               return error
               pass
@@ -667,14 +663,8 @@
           relay "wurstbot_https_relay" {
               listen on {{ bgp_ha_ip }} port 443 tls
               protocol "proxy_tls"
-              forward to <wurstbot_http_hosts> port 443 mode loadbalance check https "/" code 200
-              forward to <wurstbot_nagios_hosts> port 443 mode loadbalance check https "/" code 200
-              forward to <wurstbot_repo_hosts> port 443 mode loadbalance check https "/" code 200
-              forward to <wurstbot_wiki_hosts> port 443 mode loadbalance check https "/" code 200
-              forward to <wurstbot_owncloud_hosts> port 443 mode loadbalance check https "/" code 200
-              forward to <wurstbot_zabbix_hosts> port 443 mode loadbalance check https "/" code 200
+              forward to <wurstbot_http_hosts> port 80 mode loadbalance check http "/" code 200
           }
-
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - relayd config"
       create: true
@@ -683,10 +673,20 @@
     register: relayd_config_results
 
   - name: relayd - symlink tls cert
-    shell: cd /etc/ssl ; ln -s {{ dns_name }}.fullchain.pem {{ bgp_ha_ip }}:443.crt
+    file:
+      src: /etc/ssl/{{ dns_name }}.fullchain.pem
+      dest: /etc/ssl/{{ bgp_ha_ip }}:443.crt
+      state: link
+      group: wheel
+      owner: root
 
   - name: relayd - symlink tls key
-    shell: cd /etc/ssl/private ; ln -s {{ dns_name }}.key {{ bgp_ha_ip }}:443.key
+    file:
+      src: /etc/ssl/private/{{ dns_name }}.key
+      dest: /etc/ssl/private/{{ bgp_ha_ip }}:443.key
+      state: link
+      group: wheel
+      owner: root
 
   - name: relayd - check config
     command: /usr/sbin/relayd -nf /etc/relayd.conf
@@ -735,7 +735,6 @@
       state: present
       key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
 
-  #TO FIX: ssh validate fails on OpenBSD 6.3: Match User breaks
   - name: ssh - configure sshd
     blockinfile:
       dest: /etc/ssh/sshd_config
@@ -744,8 +743,6 @@
         PermitRootLogin no
         PasswordAuthentication no
         UseDNS no
-        # Match User ansible
-        #     PasswordAuthentication yes
       backup: yes
       marker: "# {mark} ANSIBLE MANAGED BLOCK - ssh config"
       validate: "/usr/sbin/sshd -T -f %s"
@@ -868,71 +865,92 @@
     service: name=nrpe state=restarted
     when: nrpe_config_results|changed
 
-#   #######################################
-#   # GITOLITE
-#   #######################################
-# - name: configure gitolite
-#   hosts: gitolite_hosts
-#   user: admin
-#   become: true
-#   become_method: doas
-#
-#   tasks:
-#     - name: gitolite - install git
-#       openbsd_pkg: name=git state=present
-#       tags:
-#          - git
-#
-#     - name: gitolite - create git user with password
-#       shell: pass=$(echo {{ git_pass }} | encrypt) ; adduser -batch {{ git_user }} daemon git $pass
-#       ignore_errors: true
-#       # no_log: true
-#       tags:
-#          - git
-#
-#     - name: gitolite - set admin user password
-#       shell: pass=$(echo {{ git_pass }} | encrypt) ; usermod -p $pass {{ git_user }}
-#       # no_log: true
-#       tags:
-#          - git
-#
-#     # - name: gitolite - copy public key to tmp
-#     #   copy:
-#     #     src: "~/.ssh/id_ecdsa.pub"
-#     #     dest: "/home/{{ git_user }}/id_ecdsa.pub"
-#
-#       tags:
-#          - git
-#
-#     - name: gitolite - create repo dirs
-#       file:
-#         path: "/home/{{ git_user }}/bin"
-#         owner: git
-#         group: git
-#         recurse: yes
-#         state: directory
-#       tags:
-#          - git
-#
-#     - name: gitolite - checkout gitolite repository
-#       git:
-#         repo: https://github.com/sitaramc/gitolite
-#         dest: "/home/{{ git_user }}/gitolite"
-#         accept_hostkey: yes
-#         clone: yes
-#         update: yes
-#       tags:
-#          - git
-#
-#     - name: gitolite - install
-#       shell: /home/{{ git_user }}/gitolite/install -to /home/{{ git_user }}/bin
-#       tags:
-#          - git
-#
-#     - name: gitolite - setup with gitolite public key
-#       shell: /home/{{ git_user }}/bin/gitolite setup -pk /tmp/id_ecdsa.pub
-#       tags:
-#          - git
+  #######################################
+  # GITOLITE
+  #######################################
+- name: configure gitolite
+  hosts: gitolite_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: gitolite - install git
+    openbsd_pkg: name=git state=present
+    tags:
+       - git
+
+  - name: gitolite - create git user with password
+    shell: pass=$(echo {{ git_pass }} | encrypt) ; adduser -batch {{ git_user }} daemon git $pass
+    ignore_errors: true
+    # no_log: true
+    tags:
+       - git
+
+  - name: gitolite - set admin user password
+    shell: pass=$(echo {{ git_pass }} | encrypt) ; usermod -p $pass {{ git_user }}
+    # no_log: true
+    tags:
+       - git
+
+  # - name: gitolite - copy public key to tmp
+  #   copy:
+  #     src: "~/.ssh/id_ansible.pub"
+  #     dest: "/tmp/id_ansible.pub"
+  #   tags:
+  #      - git
+
+  - name: gitolite - create repo dirs
+    file:
+      path: "/home/{{ git_user }}/bin"
+      owner: git
+      group: git
+      recurse: yes
+      state: directory
+    tags:
+       - git
+
+  - name: gitolite - checkout gitolite repository
+    git:
+      repo: https://github.com/sitaramc/gitolite
+      dest: "/home/{{ git_user }}/gitolite"
+      accept_hostkey: yes
+      clone: yes
+      update: yes
+    tags:
+       - git
+
+  - name: gitolite - install
+    shell: doas -u {{ git_user }} /home/{{ git_user }}/gitolite/install -to /home/{{ git_user }}/bin
+    register: gitolite_install_results
+    tags:
+       - git
+
+
+  # step is failing, works when tested on shell
+  # - name: gitolite - setup with gitolite public key
+  #   shell: doas -u {{ git_user }} /home/{{ git_user }}/bin/gitolite setup -pk /tmp/id_ansible.pub
+  #   tags:
+  #      - git
+
+  - name: gitolite - configure sshd
+    blockinfile:
+      dest: /etc/ssh/sshd_config
+      block: |
+        # Match User git
+        #      PasswordAuthentication yes
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - gitolite ssh config"
+      validate: "/usr/sbin/sshd -T -f %s"
+    register: gitolite_ssh_config_results
+    tags:
+       - git
+
+  - name: gitolite - reload sshd
+    service: name=sshd state=reloaded
+    when: gitolite_ssh_config_results|changed
+    tags:
+       - git
 
   #######################################
   # PHP-FPM
@@ -1035,12 +1053,52 @@
   become_method: doas
 
   tasks:
+  - name: httpd - git checkout www site
+    git:
+      dest: /var/www/{{ www_dns_name }}
+      repo: https://github.com/s-schmidbauer/{{ www_dns_name }}
+
+    # www host first (before the catch all)
+  - name: httpd - configure www vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ www_dns_name }} {
+           alias www{{ node_number }}.wurstbot.com
+           root "/{{ www_dns_name }}"
+
+           listen on lo port 80
+           listen on {{ ext_if }} port 80
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+
+           location "/.well-known/acme-challenge/*" {
+                no authenticate
+                root "/acme"
+                root strip 2
+           }
+
+           location "*.php*" {
+                fastcgi socket ":{{ php_port }}"
+           }
+
+           location "*.cgi" {
+                root { "/" }
+                fastcgi socket "/run/slowcgi.sock"
+           }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - www vhost"
+
   - name: httpd - configure httpd
     blockinfile:
       dest: /etc/httpd.conf
       block: |
         server *.wurstbot.com {
-           listen on egress port 80
+           listen on {{ ext_if }} port 80
            listen on lo port 80
            root "/"
 
@@ -1061,38 +1119,6 @@
         }
       create: true
       marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost"
-
-  - name: httpd - git checkout www site
-    git:
-      dest: /var/www/{{ www_dns_name }}
-      repo: https://github.com/s-schmidbauer/{{ www_dns_name }}
-
-  - name: httpd - configure www vhost
-    blockinfile:
-      dest: /etc/httpd.conf
-      block: |
-        server www.wurstbot.com {
-           alias www{{ node_number }}.wurstbot.com
-           root "/{{ www_dns_name }}"
-
-           hsts
-           listen on lo tls port 443
-           listen on egress tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
-
-           location "*.php*" {
-                fastcgi socket ":{{ php_port }}"
-           }
-
-           location "*.cgi" {
-                root { "/" }
-                fastcgi socket "/run/slowcgi.sock"
-           }
-        }
-      create: true
-      marker: "# {mark} ANSIBLE MANAGED BLOCK - www vhost"
 
   - name: httpd - check config
     command: /usr/sbin/httpd -n
@@ -1138,8 +1164,8 @@
       state: directory
       recurse: yes
     with_items:
-      - 6.3/amd64
-      - 6.3/packages/amd64
+      - "{{ os_version }}/amd64"
+      - "{{ os_version }}/packages/amd64"
       - snapshots/amd64
     register: repo_create_results
 
@@ -1158,21 +1184,21 @@
       - "songs"
       - "syspatch"
       - "tools"
-      # - "6.3/packages/amd64/" # packages is too big
+      # - "{{ os_version }}/packages/amd64/" # packages is too big
 
   - name: repo - sync repo sub folders
     shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} {{ item }}
     with_items:
       - "snapshots/amd64/"
-      - "6.3/ANNOUNCEMENT"
-      - "6.3/SHA256"
-      - "6.3/SHA256.sig"
-      - "6.3/ports.tar.gz"
-      - "6.3/src.tar.gz"
-      - "6.3/sys.tar.gz"
-      - "6.3/xenocara.tar.gz"
-      - "6.3/amd64/"
-      # - "6.3/packages/amd64/" # packages is too big
+      - "{{ os_version }}/ANNOUNCEMENT"
+      - "{{ os_version }}/SHA256"
+      - "{{ os_version }}/SHA256.sig"
+      - "{{ os_version }}/ports.tar.gz"
+      - "{{ os_version }}/src.tar.gz"
+      - "{{ os_version }}/sys.tar.gz"
+      - "{{ os_version }}/xenocara.tar.gz"
+      - "{{ os_version }}/amd64/"
+      # - "{{ os_version }}/packages/amd64/" # packages is too big
 
   - name: repo - configure httpd
     blockinfile:
@@ -1190,7 +1216,7 @@
            root "/repo"
 
            listen on lo tls port 443
-           listen on egress tls port 443
+           listen on {{ ext_if }} tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1217,7 +1243,7 @@
   #     insertafter: "alias repo"
   #     block: |
   #          listen on lo tls port 443
-  #          listen on egress tls port 443
+  #          listen on {{ ext_if }} tls port 443
   #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
   #          tls key "/etc/ssl/private/{{ dns_name }}.key"
   #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1268,7 +1294,7 @@
            root "/dokuwiki"
 
            listen on lo tls port 443
-           listen on egress tls port 443
+           listen on {{ ext_if }} tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1299,7 +1325,7 @@
   #     insertafter: "alias {{ dokuwiki_dns_name }}"
   #     block: |
   #          listen on lo tls port 443
-  #          listen on egress tls port 443
+  #          listen on {{ ext_if }} tls port 443
   #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
   #          tls key "/etc/ssl/private/{{ dns_name }}.key"
   #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1361,7 +1387,7 @@
            root "/owncloud"
 
            listen on lo tls port 443
-           listen on egress tls port 443
+           listen on {{ ext_if }} tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1392,7 +1418,7 @@
   #     insertafter: "alias {{ owncloud_dns_name }}"
   #     block: |
   #          listen on lo tls port 443
-  #          listen on egress tls port 443
+  #          listen on {{ ext_if }} tls port 443
   #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
   #          tls key "/etc/ssl/private/{{ dns_name }}.key"
   #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1691,7 +1717,7 @@
            root "/"
 
            listen on lo tls port 443
-           listen on egress tls port 443
+           listen on {{ ext_if }} tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -1708,7 +1734,7 @@
   #     insertafter: "alias mail"
   #     block: |
   #          listen on lo tls port 443
-  #          listen on egress tls port 443
+  #          listen on {{ ext_if }} tls port 443
   #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
   #          tls key "/etc/ssl/private/{{ dns_name }}.key"
   #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -2031,9 +2057,11 @@
 
   - name: zabbix - started
     service: name=zabbix_server state=started
+    when: zabbix_active_server == True
 
   - name: zabbix - enable
     shell: rcctl enable zabbix_server
+    when: zabbix_active_server == True
 
   - name: zabbix - make chrooted php directory
     file:
@@ -2070,7 +2098,6 @@
       state: present
       marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix web config"
     register: zabbix_web_config_results
-    when: zabbix_install_mode == True
 
   - name: zabbix - configure httpd vhost
     blockinfile:
@@ -2081,7 +2108,7 @@
            root "/zabbix"
 
            listen on lo tls port 443
-           listen on egress tls port 443
+           listen on {{ ext_if }} tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -2609,7 +2636,7 @@
            root "/nagios"
 
            listen on lo tls port 443
-           listen on egress tls port 443
+           listen on {{ ext_if }} tls port 443
            tls certificate "/etc/ssl/{{ dns_name }}.crt"
            tls key "/etc/ssl/private/{{ dns_name }}.key"
            tls ocsp "/etc/ssl/{{ dns_name }}.der"
@@ -2645,7 +2672,7 @@
   #     insertafter: "alias nagios"
   #     block: |
   #          listen on lo tls port 443
-  #          listen on egress tls port 443
+  #          listen on {{ ext_if }} tls port 443
   #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
   #          tls key "/etc/ssl/private/{{ dns_name }}.key"
   #          tls ocsp "/etc/ssl/{{ dns_name }}.der"

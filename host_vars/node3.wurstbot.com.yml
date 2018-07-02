@@ -20,6 +20,34 @@ bgp_pass: supersecret
 # PF
 ext_if: vio0
 
+iked_tunnels:
+  node2_to_node3:
+    vpn_mode: passive
+    vpn_peer_ip: 46.36.36.48
+    vpn_local_ip: "{{ node_ip }}"
+    vpn_remote_ip: 46.36.36.48
+    vpn_ikesa: auth hmac-sha1 enc aes-256 group modp1024
+    vpn_childsa: enc aes-256 auth hmac-sha1 group modp1024
+    vpn_srcid: "{{ node_ip }}"
+    vpn_dstid: 46.36.36.48
+    vpn_ikelifetime: 10800
+    vpn_lifetime: 3600
+    vpn_psk: supersecret
+    vpn_tunnel_bandwidth: 1M
+  node3_to_node5:
+    vpn_mode: active
+    vpn_peer_ip: 45.32.185.50
+    vpn_local_ip: "{{ node_ip }}"
+    vpn_remote_ip: 45.32.185.50
+    vpn_ikesa: auth hmac-sha1 enc aes-256 group modp1024
+    vpn_childsa: enc aes-256 auth hmac-sha1 group modp1024
+    vpn_srcid: "{{ node_ip }}"
+    vpn_dstid: 45.32.185.50
+    vpn_ikelifetime: 10800
+    vpn_lifetime: 3600
+    vpn_psk: supersecret
+    vpn_tunnel_bandwidth: 1M
+
 # ACME-client
 acme_aliases:
   - repo.wurstbot.com
@@ -28,6 +56,9 @@ acme_aliases:
   - wiki{{ node_number }}.wurstbot.com
   - owncloud.wurstbot.com
   - owncloud{{ node_number }}.wurstbot.com
+
+# GITOLITE
+git_pass: supersecret
 
 # ZABBIX
 zabbix_db_pass: supersecret

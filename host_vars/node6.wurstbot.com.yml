@@ -59,6 +59,9 @@ acme_aliases:
   - owncloud.wurstbot.com
   - owncloud{{ node_number }}.wurstbot.com
 
+# GITOLITE
+git_pass: supersecret
+
 # ZABBIX
 zabbix_db_pass: supersecret
 

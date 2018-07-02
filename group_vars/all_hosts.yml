@@ -5,6 +5,7 @@
 install_url: https://ftp.fau.de/pub/OpenBSD
 node_number: 0
 node_ip: 0.0.0.0
+os_version: 6.3
 
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin
@@ -158,6 +159,7 @@ zabbix_version: 3.4.7
 zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
 zabbix_install_mode: false
+zabbix_active_server: false
 zabbix_dns_name: zabbix.wurstbot.com
 zabbix_master: 45.32.185.50
 zabbix_servers:

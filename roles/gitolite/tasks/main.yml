@@ -1,0 +1,83 @@
+---
+  #######################################
+  # GITOLITE
+  #######################################
+- name: configure gitolite
+
+  tasks:
+  - name: gitolite - install git
+    openbsd_pkg: name=git state=present
+    tags:
+       - git
+
+  - name: gitolite - create git user with password
+    shell: pass=$(echo {{ git_pass }} | encrypt) ; adduser -batch {{ git_user }} daemon git $pass
+    ignore_errors: true
+    # no_log: true
+    tags:
+       - git
+
+  - name: gitolite - set admin user password
+    shell: pass=$(echo {{ git_pass }} | encrypt) ; usermod -p $pass {{ git_user }}
+    # no_log: true
+    tags:
+       - git
+
+  # - name: gitolite - copy public key to tmp
+  #   copy:
+  #     src: "~/.ssh/id_ansible.pub"
+  #     dest: "/tmp/id_ansible.pub"
+  #   tags:
+  #      - git
+
+  - name: gitolite - create repo dirs
+    file:
+      path: "/home/{{ git_user }}/bin"
+      owner: git
+      group: git
+      recurse: yes
+      state: directory
+    tags:
+       - git
+
+  - name: gitolite - checkout gitolite repository
+    git:
+      repo: https://github.com/sitaramc/gitolite
+      dest: "/home/{{ git_user }}/gitolite"
+      accept_hostkey: yes
+      clone: yes
+      update: yes
+    tags:
+       - git
+
+  - name: gitolite - install
+    shell: doas -u {{ git_user }} /home/{{ git_user }}/gitolite/install -to /home/{{ git_user }}/bin
+    register: gitolite_install_results
+    tags:
+       - git
+
+
+  # step is failing, works when tested on shell
+  # - name: gitolite - setup with gitolite public key
+  #   shell: doas -u {{ git_user }} /home/{{ git_user }}/bin/gitolite setup -pk /tmp/id_ansible.pub
+  #   tags:
+  #      - git
+
+  - name: gitolite - configure sshd
+    blockinfile:
+      dest: /etc/ssh/sshd_config
+      block: |
+        # Match User git
+        #      PasswordAuthentication yes
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - gitolite ssh config"
+      validate: "/usr/sbin/sshd -T -f %s"
+    register: gitolite_ssh_config_results
+    tags:
+       - git
+
+  - name: gitolite - reload sshd
+    service: name=sshd state=reloaded
+    when: gitolite_ssh_config_results|changed
+    tags:
+	- git

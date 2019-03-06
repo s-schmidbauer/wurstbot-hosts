@@ -1,0 +1,182 @@
+---
+  #######################################
+  # ZABBIX SERVER
+  #######################################
+- name: configure zabbix server
+
+  tasks:
+  - name: zabbix server - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - zabbix-server-{{ zabbix_version}}-mysql
+      - zabbix-web
+
+  - name: zabbix - configure php.ini
+    blockinfile:
+      dest: /etc/php-5.6.ini
+      block: |
+          max_execution_time 300
+          memory_limit 128M
+          post_max_size 16M
+          upload_max_filesize 2M
+          max_input_time 300
+          always_populate_raw_post_data -1
+      backup: yes
+      state: present
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix php options"
+    register: zabbix_php_results
+
+  - name: zabbix - create db
+    mysql_db:
+      name: zabbix
+      encoding: utf8
+      collation: utf8_bin
+      login_user: root
+      login_password: "{{ mysql_root_pass }}"
+      state: present
+    register: zabbix_create_db_results
+    when: zabbix_install_mode == True
+
+  # - name: zabbix - grant permissions to zabbix user
+  #   mysql_user: name='{{ zabbix_db_user }}' password={{ zabbix_db_pass }} priv="zabbix.*:ALL" login_user=root login_password="{{ mysql_root_pass }}" host={{ zabbix_master }} state=present
+
+  - name: zabbix - download source package for db dumps
+    get_url:
+      url: https://sourceforge.net/projects/zabbix/files/ZABBIX%20Latest%20Stable/{{ zabbix_version }}/zabbix-{{ zabbix_version }}.tar.gz/download
+      dest: /tmp/zabbix-{{ zabbix_version }}.tar.gz
+      mode: 0440
+    when: zabbix_install_mode == True
+
+  - name: zabbix - make source directory
+    file:
+      path: /tmp/zabbix-{{ zabbix_version }}
+      state: directory
+    when: zabbix_install_mode == True
+
+  # - name: zabbix - unpack source package
+  #   unarchive:
+  #     src: /tmp/zabbix-{{ zabbix_version }}.tar.gz
+  #     dest: /tmp/zabbix-{{ zabbix_version }}
+  #     remote_src: yes
+  #   when: zabbix_install_mode == True
+
+  - name: zabbix - unpack source package
+    shell: tar xfz /tmp/zabbix-{{ zabbix_version }}.tar.gz -C /tmp/
+    when: zabbix_install_mode == True and zabbix_create_db_results|changed
+
+  - name: zabbix - import databases
+    mysql_db:
+      name: zabbix
+      login_user: root
+      login_password: "{{ mysql_root_pass }}"
+      target: /tmp/zabbix-{{ zabbix_version }}/database/mysql/{{ item }}.sql
+      state: import
+    with_items:
+      - schema
+      - images
+      - data
+    when: zabbix_install_mode == True and zabbix_create_db_results|changed
+    ignore_errors: true
+
+  - name: zabbix - config zabbix server
+    blockinfile:
+      dest: /etc/zabbix/zabbix_server.conf
+      block: |
+          PidFile=/var/run/zabbix_server.pid
+          LogType=file
+          LogFile=/var/log/zabbix/zabbix_server.log
+          DBHost={{ zabbix_master }}
+          DBName=zabbix
+          DBUser={{ zabbix_db_user }}
+          DBPassword={{ zabbix_db_pass }}
+          # DBSocket=/tmp/mysql.sock
+          DBPort=3306
+          ExternalScripts=/etc/zabbix/externalscripts
+      state: present
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix server config"
+      create: true
+      backup: yes
+    when: zabbix_log_results is succeeded and zabbix_pid_results is succeeded
+    register: zabbix_server_config_results
+
+  - name: zabbix - started
+    service: name=zabbix_server state=started
+    when: zabbix_active_server == True
+
+  - name: zabbix - enable
+    shell: rcctl enable zabbix_server
+    when: zabbix_active_server == True
+
+  - name: zabbix - make chrooted php directory
+    file:
+      path: /var/www/etc/php-5.6
+      state: directory
+    when: zabbix_install_mode == True
+
+  - name: zabbix - copy php extensions to chrooted php directory
+    shell: cp /etc/php-5.6.sample/* /var/www/etc/php-5.6/
+    when: zabbix_install_mode == True
+
+  - name: zabbix - copy php.ini to chrooted directory
+    copy:
+      src: /etc/php-5.6.ini
+      dest: /var/www/etc/php-5.6.ini
+      remote_src: yes
+    when: zabbix_install_mode == True
+
+  # Use 127.0.0.1 over localhost to avoid issues
+  - name: zabbix - configure web interface
+    blockinfile:
+      dest: /var/www/zabbix/conf/zabbix.conf.php
+      block: |
+          $DB['TYPE']       = 'MYSQL';
+          $DB['SERVER']     = '{{ zabbix_master }}';
+          $DB['PORT']       = '3306';
+          $DB['DATABASE']   = 'zabbix';
+          $DB['USER']       = '{{ zabbix_db_user }}';
+          $DB['PASSWORD']   = '{{ zabbix_db_pass }}';
+          $ZBX_SERVER       = '{{ node_ip }}';
+          $ZBX_SERVER_PORT  = '10051';
+          $ZBX_SERVER_NAME  = '{{ dns_name }}';
+      backup: yes
+      state: present
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix web config"
+    register: zabbix_web_config_results
+
+  - name: zabbix - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ zabbix_dns_name }} {
+           alias zabbix{{ node_number }}.wurstbot.com
+           root "/zabbix"
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+            directory {
+                    index "index.php"
+            }
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - zabbix vhost"
+
+  - name: zabbix - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+    when: zabbix_web_config_results|changed
+
+  - name: zabbix - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: zabbix - reload httpd when config changed
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded

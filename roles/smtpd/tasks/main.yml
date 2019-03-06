@@ -1,0 +1,84 @@
+---
+  #######################################
+  # SMTPD
+  #######################################
+- name: configure smtpd
+  hosts: mail_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  # - name: smtpd - config aliases
+  #   blockinfile:
+  #     dest: /etc/mail/domains
+  #     block: |
+  #         // aliases go here
+  #     state: present
+  #     create: true
+  #     backup: yes
+  #   register: smtpd_aliases_results
+
+  - name: smtpd - config domains
+    blockinfile:
+      dest: /etc/mail/domains
+      block: |
+          wurstbot.com
+      state: present
+      create: true
+      backup: yes
+    register: smtpd_domains_results
+
+  - name: smtpd - config virtuals
+    blockinfile:
+      dest: /etc/mail/virtuals
+      block: |
+          zabbix@wurstbot.com     root
+          nagios@wurstbot.com     root
+          admin@wurstbot.com      root
+      state: present
+      create: true
+      backup: yes
+    register: smtpd_virtuals_results
+
+  - name: smtpd - config credentials
+    shell: pass=$(echo {{ smtpd_pass }} | smtpctl encrypt) ; echo {{ admin_user }}:$pass > /etc/mail/creds
+    register: smtpd_creds_results
+
+  - name: smtpd - delete existing config
+    file:
+      path: /etc/mail/smtpd.conf
+      state: absent
+
+  - name: smtpd - config service
+    blockinfile:
+      dest: /etc/mail/smtpd.conf
+      block: |
+          table aliases file:/etc/mail/aliases
+          table domains file:/etc/mail/domains
+          table creds file:/etc/mail/creds
+          pki node{{ node_number}} certificate  "/etc/ssl/{{ dns_name }}.crt"
+          pki node{{ node_number}} key          "/etc/ssl/private/{{ dns_name }}.key"
+          # Accept external mail
+          listen on all port 25 tls pki node{{node_number}} auth-optional <creds>
+          listen on all port 587 tls-require pki node{{node_number}} auth-optional <creds>
+          listen on all port 465 smtps pki node{{node_number}} auth-optional <creds>
+          # Accept external mail for domain "wurstbot.com"
+          accept from any for domain <domains> alias <aliases> deliver to mbox
+          accept for local alias <aliases> deliver to mbox
+          accept from local for any relay
+      state: present
+      create: true
+      backup: yes
+    # when: smtpd_aliases_results is succeeded and smtpd_domains_results is succeeded and smtpd_virtuals_results is succeeded and smtpd_creds_results is succeeded
+    register: smtpd_config_results
+
+  - name: smtpd - restarted
+    service: name=smtpd state=restarted
+    when: smtpd_config_results|changed
+
+  - name: smtpd - start
+    service: name=smtpd state=started
+
+  - name: smtpd - enable
+    shell: rcctl enable smtpd

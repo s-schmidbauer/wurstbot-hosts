@@ -1,0 +1,67 @@
+---
+  #######################################
+  # SPAMD
+  #######################################
+- name: configure spamd
+
+  tasks:
+  - name: spamd - enable
+    shell: rcctl enable spamd
+
+  - name: spamd - config service
+    blockinfile:
+      dest: /etc/rc.conf.local
+      block: |
+          spamd_black=NO
+          spamd_flags="-4 -C /etc/ssl/{{ dns_name }}.crt -G25:4:864 -h mail.wurstbot.com -n \"Sendmail 8.11.4/8.11.1\" -v -w1"
+          spamlogd_flags="-I -i lo0"
+      state: present
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - spamd config"
+    register: spamd_config_results
+
+  - name: spamd - config nospamd
+    blockinfile:
+      dest: /etc/mail/nospamd
+      block: |
+          127.0.0.1
+          46.36.36.48
+          80.240.28.59
+          45.32.185.50
+          45.32.152.181
+          209.250.244.111
+      state: present
+      create: true
+      backup: yes
+    register: spamd_nospamd_results
+
+  - name: spamd - configure packet filter
+    blockinfile:
+      dest: /etc/pf.conf
+      block: |
+          table <spamd-white> persist
+          table <nospamd> persist file "/etc/mail/nospamd"
+          pass in on egress proto tcp from any to any port smtp rdr-to 127.0.0.1 port spamd
+          pass in on egress proto tcp from <nospamd> to any port smtp
+          pass in log on egress proto tcp from <spamd-white> to any port smtp
+          pass out log on egress proto tcp to any port smtp
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - spamd pf config"
+      validate: "/sbin/pfctl -n -f %s"
+
+    #sometimes spamd acts like as if its broken
+  - name: spamd - start
+    service: name=spamd state=started
+    ignore_errors: true
+
+    #error handling required, e. g. grep for runnings processes
+
+  - name: spamd - enable
+    shell: rcctl enable spamd
+
+  - name: spamlogd - start
+    service: name=spamlogd state=started
+
+  - name: spamlogd - enable
+    shell: rcctl enable spamlogd

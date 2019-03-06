@@ -1,0 +1,41 @@
+---
+  #######################################
+  # SSH
+  #######################################
+- name: configure ssh
+
+  tasks:
+  - name: ssh - start
+    service: name=sshd state=started
+
+  - name: ssh - enable ssh
+    shell: rcctl enable sshd
+
+  - name: ssh - set authorized key (admin)
+    authorized_key:
+      user: admin
+      state: present
+      key: "{{ lookup('file', '~/.ssh/id_ecdsa.pub') }}"
+
+  - name: ssh - set authorized key (ansible)
+    authorized_key:
+      user: admin
+      state: present
+      key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
+
+  - name: ssh - configure sshd
+    blockinfile:
+      dest: /etc/ssh/sshd_config
+      block: |
+        Port {{ ssh_port }}
+        PermitRootLogin no
+        PasswordAuthentication no
+        UseDNS no
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - ssh config"
+      validate: "/usr/sbin/sshd -T -f %s"
+    register: ssh_config_results
+
+  - name: ssh - reload sshd
+    service: name=sshd state=reloaded
+    when: ssh_config_results|changed

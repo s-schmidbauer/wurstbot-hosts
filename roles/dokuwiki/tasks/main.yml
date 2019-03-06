@@ -1,0 +1,68 @@
+---
+  #######################################
+  # DOKUWIKI
+  #######################################
+- name: configure dokuwiki
+
+  tasks:
+  - name: dokuwiki - install
+    openbsd_pkg: name=dokuwiki-{{ dokuwiki_version }} state=present
+
+  - name: dokuwiki - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ dokuwiki_dns_name }} {
+           alias wiki{{ node_number }}.wurstbot.com
+           root "/dokuwiki"
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+            directory {
+                    index "index.php"
+            }
+            location "/data" { block }
+            location "/conf" { block }
+            location "/bin"  { block }
+            location "/inc"  { block }
+            location "/.ht*" { block }
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost"
+    register: dokuwiki_web_config_results
+
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias {{ dokuwiki_dns_name }}"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on {{ ext_if }} tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - dokuwiki vhost tls"
+  #   when: use_tls==True
+
+  - name: dokuwiki - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+    when: dokuwiki_web_config_results|changed
+
+  - name: dokuwiki - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: dokuwiki - reload httpd when config changed
+    service: name=httpd state=reloaded

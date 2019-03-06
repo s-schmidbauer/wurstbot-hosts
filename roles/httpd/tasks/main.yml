@@ -1,0 +1,92 @@
+---
+  #######################################
+  # HTTPD
+  #######################################
+- name: configure httpd
+
+  tasks:
+  - name: httpd - git checkout www site
+    git:
+      dest: /var/www/{{ www_dns_name }}
+      repo: https://github.com/s-schmidbauer/{{ www_dns_name }}
+
+    # www host first (before the catch all)
+  - name: httpd - configure www vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ www_dns_name }} {
+           alias www{{ node_number }}.wurstbot.com
+           root "/{{ www_dns_name }}"
+           listen on lo port 80
+           listen on {{ ext_if }} port 80
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           location "/.well-known/acme-challenge/*" {
+                no authenticate
+                root "/acme"
+                root strip 2
+           }
+           location "*.php*" {
+                fastcgi socket ":{{ php_port }}"
+           }
+           location "*.cgi" {
+                root { "/" }
+                fastcgi socket "/run/slowcgi.sock"
+           }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - www vhost"
+
+  - name: httpd - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server *.wurstbot.com {
+           listen on {{ ext_if }} port 80
+           listen on lo port 80
+           root "/"
+           location "/.well-known/acme-challenge/*" {
+                no authenticate
+                root "/acme"
+                root strip 2
+           }
+           location "*.php*" {
+                fastcgi socket ":{{ php_port }}"
+           }
+           location "*.cgi" {
+                root { "/" }
+                fastcgi socket "/run/slowcgi.sock"
+           }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - default vhost"
+
+  - name: httpd - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: httpd - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: httpd - started
+    service: name=slowcgi state=started
+
+  - name: httpd - enable
+    shell: rcctl enable httpd
+
+  - name: httpd - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded
+
+  - name: httpd - create test file
+    lineinfile:
+      dest: /var/www/index.html
+      line: <html><p>{{ dns_name }}</p></html>
+      state: present
+    create: true

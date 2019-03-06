@@ -3,10 +3,6 @@
   # MariaDB
   #######################################
 - name: configure mysql
-  hosts: mysql_hosts
-  user: admin
-  become: true
-  become_method: doas
 
   tasks:
   - name: mysql - install

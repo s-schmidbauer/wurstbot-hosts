@@ -3,10 +3,6 @@
   # SMTPD
   #######################################
 - name: configure smtpd
-  hosts: mail_hosts
-  user: admin
-  become: true
-  become_method: doas
 
   tasks:
   # - name: smtpd - config aliases

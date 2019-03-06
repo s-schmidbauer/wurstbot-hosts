@@ -1,0 +1,58 @@
+---
+  #######################################
+  # ACME
+  #######################################
+- name: configure acme
+
+  tasks:
+  - name: acme - configure acme
+    blockinfile:
+      dest: /etc/acme-client.conf
+      block: |
+        domain "{{ dns_name }}" {
+          alternative names { {{ www_dns_name }} {{ acme_aliases | join(' ') }} }
+          domain key "/etc/ssl/private/{{ dns_name }}.key"
+          domain certificate "/etc/ssl/{{ dns_name }}.crt"
+          domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
+          sign with letsencrypt
+        }
+      backup: yes
+      create: true
+    when: use_tls==true
+
+    #make sure the cert does not exist yet and a webserver is able to satisify the request
+  - name: acme - configure cert and key
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    when: use_tls == true
+    ignore_errors: true
+
+  - name: acme - create ocsp
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+    when: use_tls == true
+    ignore_errors: true
+
+  - name: acme - delete old key and cert if expired
+    shell: rm /etc/ssl/private/{{ dns_name }}.key ; rm /etc/ssl/certs/{{ dns_name }}.*
+    ignore_errors: true
+    register: acme_expired_deletion_result
+    when: ocsp_create_result.stdout.find('old') != -1 and use_tls==true
+
+  - name: acme - create new key and cert if expired
+    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    register: acme_renew_result
+    when: acme_expired_deletion_result is succeeded and use_tls==true
+    ignore_errors: true
+
+  - name: acme - refresh ocsp if key and cert were renewed
+    shell: ocspcheck -No /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem
+    register: ocsp_create_result
+    when: acme_renew_result is succeeded and use_tls==true
+    ignore_errors: true
+
+  - name: acme - backup certs and keys
+    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
+    register: acme_backup_results
+    when: acme_renew_result is succeeded and use_tls==true
+    ignore_errors: true
+

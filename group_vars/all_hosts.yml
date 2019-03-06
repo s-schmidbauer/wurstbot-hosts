@@ -6,6 +6,32 @@ user: admin
 become: true
 become_method: doas
 
+# roles management
+manage_common: true
+manage_pf: true
+manage_iked: true
+manage_bird: true
+manage_relayd: true
+manage_nrpe: true
+manage_nagios: true
+manage_sshd: true
+manage_acme-client: true
+manage_nrpe: true
+manage_gitolite: true
+manage_php-fpm: true
+manage_slowcgi: true
+manage_httpd: true
+manage_repo: true
+manage_dokuwiki: true
+manage_owncloud: true
+manage_squid: true
+manage_smtpd: true
+manage_dovecot: true
+manage_spamd: true
+manage_zabbix-agent: true
+manage_zabbix-server: true
+manage_mariadb: true
+
 # BASE
 install_url: https://ftp.fau.de/pub/OpenBSD
 node_number: 0

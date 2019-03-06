@@ -1,0 +1,114 @@
+---
+  #######################################
+  # DOVECOT
+  #######################################
+- name: configure dovecot
+
+  tasks:
+  - name: dovecot - install
+    openbsd_pkg: name=dovecot state=present
+
+  - name: dovecot - raise file limit
+    blockinfile:
+      dest: /etc/login.conf
+      block: |
+        dovecot:\
+          :openfiles=2048:\
+          :tc=daemon:
+      state: present
+      create: true
+      backup: yes
+
+  - name: dovecot - config mail location
+    blockinfile:
+      dest: /etc/dovecot/conf.d/10-mail.conf
+      block: |
+          mail_location = mbox:~/mail:INBOX=/var/mail/%u
+      state: present
+      create: true
+      backup: yes
+    register: dovecot_config_mail_results
+
+    # required to be removed (duplicate )
+    # ssl_cert = </etc/ssl/dovecotcert.pem
+    # ssl_key = </etc/ssl/private/dovecot.pem
+  - name: dovecot - config ssl
+    blockinfile:
+      dest: /etc/dovecot/conf.d/10-ssl.conf
+      block: |
+          ssl_cert = </etc/ssl/{{ dns_name }}.crt
+          ssl_key = </etc/ssl/private/{{ dns_name }}.key
+          ssl_dh_parameters_length = 4096
+          ssl_protocols = !SSLv3 !SSLv2
+          ssl_cipher_list = AES128+EECDH:AES128+EDH
+          ssl_prefer_server_ciphers = yes
+      state: present
+      create: true
+      backup: yes
+      # validate: "dovecot -n -f %s"
+    register: dovecot_config_ssl_results
+
+  - name: dovecot - check config
+    shell: dovecot -n
+    register: dovecot_config_check
+    ignore_errors: true
+
+  - name: dovecot - restarted
+    service: name=dovecot state=restarted
+    when: dovecot_config_check is succeeded
+
+  - name: dovecot - enable
+    shell: rcctl enable dovecot
+
+  - name: dovecot - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ mail_dns_name }} {
+           alias mail{{ node_number }}.wurstbot.com
+           root "/"
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - mail vhost"
+
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias mail"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on {{ ext_if }} tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
+  #   when: use_tls==True
+
+  - name: dovecot - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: dovecot - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: dovecot - started
+    service: name=slowcgi state=started
+
+  - name: dovecot - enable
+    shell: rcctl enable httpd
+
+  - name: dovecot - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded

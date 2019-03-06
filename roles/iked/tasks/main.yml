@@ -1,0 +1,75 @@
+---
+  #######################################
+  # IKED
+  #######################################
+- name: configure iked
+
+  tasks:
+  - name: iked - configure iked tunnels
+    blockinfile:
+      dest: /etc/iked.conf
+      block: |
+          ikev2 {{ item.key }} {{ item.value.vpn_mode }} esp \
+             proto tcp \
+             from {{ item.value.vpn_local_ip }} \
+             to {{ item.value.vpn_remote_ip }} \
+             peer {{ item.value.vpn_peer_ip }} \
+             ikesa {{ item.value.vpn_ikesa }} \
+             childsa {{ item.value.vpn_childsa }} \
+             srcid {{ item.value.vpn_srcid }} \
+             dstid {{ item.value.vpn_dstid }} \
+             ikelifetime {{ item.value.vpn_ikelifetime }} \
+             lifetime {{ item.value.vpn_lifetime }} \
+             psk {{ item.value.vpn_psk }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - iked {{ item.key }} config"
+      backup: yes
+      validate: "iked -nf %s"
+      create: true
+      mode: 0600
+    register: iked_config_result
+    with_dict: "{{ iked_tunnels }}"
+    tags: iked
+
+  - name: pf - configure packet filter iked
+    blockinfile:
+      dest: /etc/pf.conf
+      block: |
+          queue iked_{{ item.key}} parent iked bandwidth {{ item.value.vpn_tunnel_bandwidth }}
+          pass in log on {{ ext_if }} proto udp from {{ item.value.vpn_peer_ip }} to {{ item.value.vpn_local_ip }} port {500, 4500} set queue iked_{{ item.key}}
+          pass out log on {{ ext_if }} proto udp from {{ item.value.vpn_local_ip }} to {{ item.value.vpn_peer_ip }} port {500, 4500} set queue iked_{{ item.key}}
+          pass in log on {{ ext_if }} proto esp from {{ item.value.vpn_remote_ip }} to {{ item.value.vpn_local_ip }} set queue iked_{{ item.key}}
+          pass out log on {{ ext_if }} proto esp from {{ item.value.vpn_local_ip }} to {{ item.value.vpn_remote_ip }} set queue iked_{{ item.key}}
+          pass in log on {{ vpn_if }} proto ipencap from {{ item.value.vpn_remote_ip }} to {{ item.value.vpn_local_ip }} keep state (if-bound) set queue iked_{{ item.key}}
+          pass out log on {{ vpn_if }} proto ipencap from {{ item.value.vpn_local_ip }} to {{ item.value.vpn_remote_ip }} keep state (if-bound) set queue iked_{{ item.key}}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - pf iked {{ item.key }} config"
+      backup: yes
+      validate: "pfctl -nf %s"
+    register: pf_config_result
+    with_dict: "{{ iked_tunnels }}"
+    tags: iked
+
+  - name: pf - activate pf
+    shell: pfctl -f /etc/pf.conf
+    when: pf_config_result is succeeded
+    tags: iked
+
+  - name: iked - enable
+    shell: rcctl enable iked
+    tags: iked
+
+  - name: iked - set config permissions
+    file:
+      path: /etc/iked.conf
+      owner: root
+      group: wheel
+      mode: 0600
+    tags: iked
+
+  - name: iked - start
+    service: name=iked state=started
+    tags: iked
+
+  - name: iked - activate iked
+    shell: iked -f /etc/iked.conf
+    when: pf_config_result is changed and iked_config_result is changed
+    tags: iked

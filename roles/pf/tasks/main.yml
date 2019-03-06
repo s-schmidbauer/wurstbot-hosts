@@ -1,0 +1,86 @@
+---
+  #######################################
+  # PF
+  #######################################
+- name: configure pf
+
+  tasks:
+  - name: pf - configure packet filter
+    blockinfile:
+      dest: /etc/pf.conf
+      block: |
+            queue main on {{ ext_if }} bandwidth 10M
+            queue def parent main bandwidth 10M default
+            queue iked parent main bandwidth {{ vpn_bandwidth }}
+            # choke abusers in a very slow queue
+            queue choke parent main bandwidth 1K min 0K max 1K qlimit 300
+            table <abusers> persist counters
+            table <flooders> persist counters
+            table <ha_flooders> persist counters
+            #allow 169.254.0.0/16 for bgp
+            table <martians> { 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 \
+                               172.16.0.0/12 192.0.0.0/24 192.0.2.0/24 224.0.0.0/3 \
+                               192.168.0.0/16 198.18.0.0/15 198.51.100.0/24        \
+                               203.0.113.0/24 }
+            #block return    # block stateless traffic
+            pass            # establish keep-state
+            # By default, do not permit remote connections to X11
+            block return in on ! lo0 proto tcp to port 6000:6010
+            set block-policy drop
+            set loginterface pflog0
+            antispoof for lo0
+            set skip on lo0
+            match in all scrub (no-df random-id max-mss 1440)
+            block in from no-route to any
+            block in from urpf-failed to any
+            block in quick on egress from <martians> to any
+            block return out quick on egress from any to <martians>
+            block drop log (all) quick from <abusers>
+            block log all
+            pass out log quick inet
+            pass in on egress inet proto icmp from any to any
+            # abusive usage
+            ###########################
+            # allow traffic from abusers to egress but throttle them
+            pass in quick log on egress proto tcp from <flooders> to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn 1, max-src-conn-rate 1/1, overload <abusers> flush global, pflow) set queue choke
+            # allow traffic from abusers to our ha ip but throttle them
+            pass in quick log on {{ ext_if }} proto tcp from <ha_flooders> to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn 1, max-src-conn-rate 1/1, overload <abusers> flush global, pflow) set queue choke
+            # regular rules
+            ###########################
+            # allow traffic from known hosts on some ports. no rate limiting except from default queue.
+            pass in quick log on egress inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue def
+            # vpn traffic
+            pass in quick log on {{ vpn_if }} inet proto tcp from { {{ trusted_hosts | join(', ') }} } to (egress) port { {{ trusted_hosts_ports | join(', ') }}  } queue iked
+            pass out quick log on {{ vpn_if }} inet proto tcp from {{ node_ip }} to { {{ trusted_hosts | join(', ') }} } port { {{ trusted_hosts_ports | join(', ') }}  } queue iked
+            # allow traffic from any hosts on web and monitoring ports
+            pass in log on egress inet proto tcp from any to (egress) port { {{ all_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn {{ max_src_conn }}, max-src-conn-rate {{ max_src_conn_rate }}, overload <flooders> flush global, pflow) queue def
+            # allow traffic from any hosts to ha ip on some ports. with rate limiting.
+            pass in log on {{ ext_if }} inet proto tcp from any to {{ bgp_ha_ip }} port { {{ trusted_ha_hosts_ports | join(', ') }} } flags S/SA keep state \
+            (max-src-conn {{ max_src_conn }}, max-src-conn-rate {{ max_src_conn_rate }}, overload <ha_flooders> flush global, pflow) queue def
+            # pass out quick on external interface
+            pass out quick log on {{ ext_if }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - pf config"
+      backup: yes
+      validate: "/sbin/pfctl -n -f %s"
+      mode: 0600
+    tags: pf-config
+
+  - name: pf - get abusers table
+    shell: pfctl -t abusers -T show
+    register: pf_table_abusers
+
+  - set_fact:
+      pf_table_abusers_{{ node_number }}: "{{ pf_table_abusers.stdout }}"
+
+  - name: pf - check conf
+    shell: pfctl -nf /etc/pf.conf
+    register: pf_result
+    tags: pf-config
+
+  - name: pf - activate pf
+    shell: pfctl -f /etc/pf.conf
+    when: pf_result is succeeded
+    tags: pf-config

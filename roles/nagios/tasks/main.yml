@@ -1,0 +1,537 @@
+---
+  #######################################
+  # NAGIOS
+  #######################################
+- name: configure nagios
+  hosts: nagios_server_hosts
+  user: admin
+  become: true
+  become_method: doas
+
+  tasks:
+  - name: nagios - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - nagios-{{ nagios_version }}-chroot
+      # web  is not tested with -chroot yet
+      - nagios-web-{{ nagios_web_version }}-chroot
+      - py-passlib-1.7.1p0
+
+  - name: nagios - started
+    service: name=nagios state=started
+
+  - name: nagios - enable
+    shell: rcctl enable nagios
+
+  - name: nagios - configure basic auth for admin
+    shell: echo nagiosadmin:{{ nagios_password }} | htpasswd -I /var/www/.nagioshtaccess
+    ignore_errors: true
+    no_log: true
+
+  - name: nagios - configure basic auth for contacts
+    shell: echo {{ item.key }}:{{ item.value.nagios_guest_password }} | htpasswd -I /var/www/.nagioshtaccess
+    ignore_errors: true
+    no_log: true
+    with_dict: "{{ nagios_guests }}"
+
+  - name: nagios - configure contacts
+    blockinfile:
+      dest: /etc/nagios/objects/contacts.cfg
+      block: |
+          define contactgroup {
+              contactgroup_name       group_{{ item.key }}
+              members                 {{ item.key }}
+          }
+          define contact{
+              contact_name                    {{ item.key }}
+              alias                           {{ item.key }}
+              service_notification_period     24x7
+              host_notification_period        24x7
+              service_notification_options    w,u,c,r
+              host_notification_options       d,r
+              service_notification_commands   notify-service-by-email
+              host_notification_commands      notify-host-by-email
+              email                           {{ item.value.nagios_guest_email }}
+          }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios contact {{ item.key }}"
+    no_log: true
+    with_dict: "{{ nagios_guests }}"
+
+  - name: nagios - configure commands
+    blockinfile:
+      dest: /etc/nagios/objects/commands.cfg
+      block: |
+        define command {
+            command_name    check_nrpe
+            command_line    $USER1$/check_nrpe -H $HOSTADDRESS$ -c $ARG1$
+        }
+        define command{
+                command_name    check_imaps
+                command_line    $USER1$/check_imap -p 993 -S -H $HOSTADDRESS$ $ARG1$
+                }
+        define command{
+                command_name    check_smtps
+                command_line    $USER1$/check_smtp -p 587 -S -H $HOSTADDRESS$ $ARG1$
+                }
+        define command{
+                command_name    check_ssmtp
+                command_line    $USER1$/check_ssmtp -p 465 -H $HOSTADDRESS$ $ARG1$
+                }
+        define command{
+                command_name    check_cpu
+                command_line    $USER1$/check_cpu -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p $USER3$
+        }
+        define command{
+                command_name    check_swap
+                command_line    $USER1$/check_swap -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p $USER3$
+        }
+        define command{
+                command_name    check_ram
+                command_line    $USER1$/check_ram -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p $USER3$ -o $ARG3$
+        }
+        define command{
+              command_name      check_load
+              command_line      $USER1$/check_load -H $HOSTADDRESS$ -w $ARG1$ -c $ARG2$ -p $USER3$
+        }
+        define command{
+              command_name      check_https_url
+              command_line      $USER1$/check_http --ssl=1+ --sni -H '$ARG1$'
+        }
+        define command
+              command_name      check_https_cert_expiry
+              command_line      $USER1$/check_http --ssl=1+ --sni -H '$ARG1$' -C 30
+        }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios commands"
+
+  - name: nagios - configure hosts
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define host {
+                use openbsd-server
+                host_name       {{ item }}
+                address         {{ item }}.wurstbot.com
+        }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios host {{ item }}"
+    with_items: '{{ nagios_clients }}'
+
+  - name: nagios - configure guests hosts
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define host {
+                use                 openbsd-server
+                contact_groups      group_{{ item.key }}
+                host_name           {{ item.value.nagios_guest_host }}
+                address             {{ item.value.nagios_guest_ip }}
+                notifications_enabled           0
+        }
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }} host"
+    no_log: true
+    with_dict: '{{ nagios_guests }}'
+
+  - name: nagios - configure hostgroups
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define hostgroup {
+                hostgroup_name  wurstbot-openbsd-servers ;
+                alias           OpenBSD Servers ;
+                members         {{ nagios_clients |join(', ') }}
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios hostgroups "
+      create: true
+      backup: yes
+    with_items: '{{ nagios_clients }}'
+
+  - name: nagios - configure services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        # LOAD CHECKS
+        ############
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Users check
+                check_command                   check_nrpe!check_users
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Load check
+                check_command                   check_nrpe!check_load
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Disk check
+                check_command                   check_nrpe!check_disk
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Zombie procs check
+                check_command                   check_nrpe!check_zombie_procs
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             Total procs check
+                check_command                   check_nrpe!check_total_procs
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients |join(', ') }}
+                service_description             PING
+                check_command                   check_ping!100.0,20%!500.0,60%
+                notifications_enabled           0
+        }
+        # TCP CHECKS
+        ############
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_bgp |join(', ') }}
+                service_description             BGP
+                check_command                   check_tcp!179
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_ssh |join(', ') }}
+                service_description             SSH
+                check_command                   check_tcp!{{ ssh_port }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_squid |join(', ') }}
+                service_description             squid
+                check_command                   check_tcp!3128
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mysql |join(', ') }}
+                service_description             mysql
+                check_command                   check_tcp!3306
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ zabbix_clients |join(', ') }}
+                service_description             zabbix agent
+                check_command                   check_tcp!10050
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ zabbix_servers |join(', ') }}
+                service_description             zabbix server
+                check_command                   check_tcp!10051
+                notifications_enabled           0
+        }
+        # define service{
+        #         use                             local-service
+        #         host_name                       __nagios_clients_tor |join(', ') }}
+        #         service_description             Tor SocksPort
+        #         check_command                   check_tcp!9050
+        #         notifications_enabled           1
+        # }
+        # define service{
+        #         use                             local-service
+        #         host_name                       __nagios_clients_tor |join(', ') }}
+        #         service_description             Tor OrPort
+        #         check_command                   check_tcp!8443
+        #         notifications_enabled           1
+        # }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ') }}
+                service_description             HTTP
+                check_command                   check_tcp!80
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ') }}
+                service_description             HTTPS
+                check_command                   check_tcp!443
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             IMAP
+                check_command                   check_imap
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             IMAPS
+                check_command                   check_imaps
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             SMTP
+                check_command                   check_smtp
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             SMTPS
+                check_command                   check_smtps
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_mail |join(', ') }}
+                service_description             SSMTP
+                check_command                   check_ssmtp
+                notifications_enabled           0
+        }
+        # WEB CHECKS
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP basic vhost HTML
+                check_command                   check_http!{{ dns_name }}/index.html
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP basic vhost PHP
+                check_command                   check_http!{{ dns_name }}/index.php
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP www
+                check_command                   check_http!{{ www_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_wiki |join(', ')  }}
+                service_description             HTTP wiki
+                check_command                   check_http!{{ dokuwiki_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_repo |join(', ')  }}
+                service_description             HTTP repo
+                check_command                   check_http!{{ repo_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_owncloud |join(', ')  }}
+                service_description             HTTP repo
+                check_command                   check_http!{{ owncloud_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_servers |join(', ')  }}
+                service_description             HTTP nagios
+                check_command                   check_http!{{ nagios_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ zabbix_servers |join(', ')  }}
+                service_description             HTTP zabbix
+                check_command                   check_http!{{ zabbix_dns_name }}/
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTPS basic vhost
+                check_command                   check_https_url!{{ dns_name }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTPS www vhost
+                check_command                   check_https_url!{{ www_dns_name }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTPS cert expiry in next 30 days
+                check_command                   check_https_cert_expiry!{{ dns_name }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ nagios_clients_http |join(', ')  }}
+                service_description             HTTP HA IP check
+                check_command                   check_http!{{ bgp_ha_ip }}/
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios services"
+      create: true
+      backup: yes
+
+  - name: nagios - configure guest services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             HTTP {{ item.value.nagios_guest_host }}
+                check_command                   check_http!{{ item.value.nagios_guest_host }}
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest {{ item.key }} services"
+      create: true
+      backup: yes
+    no_log: true
+    with_dict: '{{ nagios_guests }}'
+
+  - name: nagios - configure guest https services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             HTTPS {{ item.value.nagios_guest_host }}
+                check_command                   check_https_url!{{ item.value.nagios_guest_host }}
+                notifications_enabled           0
+        }
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             HTTPS cert expiry in next 30 days
+                check_command                   check_https_cert_expiry!{{ item.value.nagios_guest_host }}
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest https {{ item.key }} services"
+      create: true
+      backup: yes
+    no_log: true
+    when: item.value.nagios_monitor_tls == true
+    with_dict: '{{ nagios_guests }}'
+
+  - name: nagios - configure guest ssh services
+    blockinfile:
+      dest: /etc/nagios/objects/localhost.cfg
+      block: |
+        define service{
+                use                             local-service
+                host_name                       {{ item.value.nagios_guest_host }}
+                service_description             SSH
+                check_command                   check_tcp!22
+                notifications_enabled           0
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios guest ssh {{ item.key }} services"
+      create: true
+      backup: yes
+    no_log: true
+    when: item.value.nagios_monitor_ssh == true
+    with_dict: '{{ nagios_guests }}'
+
+  - name: nagios - check config
+    command: nagios -v /var/www/etc/nagios/nagios.cfg
+    register: nagios_result
+    ignore_errors: yes
+
+  - name: nagios - handle failure
+    action: fail msg="nagios.cfg check failed."
+    when: nagios_result|failed
+
+  - name: nagios - reload nagios
+    service: name=nagios state=reloaded
+    when: nagios_result is succeeded
+
+  - name: nagios - started
+    service: name=nagios state=started
+
+  - name: nagios - enable
+    shell: rcctl enable nagios
+
+  - name: nagios - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ nagios_dns_name }} {
+           alias nagios{{ node_number }}.wurstbot.com
+           root "/nagios"
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+           authenticate with ".nagioshtaccess"
+            directory {
+                    index "index.php"
+            }
+            location "/cgi-bin/nagios/*.cgi" {
+                    root { "/" }
+                    fastcgi socket "/run/slowcgi.sock"
+            }
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+            location "/nagios*" {
+                    root { "/nagios", strip 1 }
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nagios vhost"
+
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias nagios"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on {{ ext_if }} tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - dovecot vhost tls"
+  #   when: use_tls==True
+
+  - name: nagios - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: nagios - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: nagios - reload httpd when config changed
+    service: name=httpd state=reloaded
+    when: nagios_result is succeeded and httpd_result is succeeded

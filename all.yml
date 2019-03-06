@@ -1,0 +1,29 @@
+---
+- hosts: all
+  roles:
+    - { role: common, when: manage_common }
+    - { role: pf, when: manage_pf }
+    - { role: iked, when: manage_iked }
+    - { role: bird, when: manage_bird }
+    - { role: relayd, when: manage_relayd }
+    - { role: nrpe, when: manage_nrpe }
+    - { role: nagios, when: manage_nagios }
+    - { role: sshd, when: manage_sshd _}
+    - { role: acme-client, when: manage_acme-client }
+    - { role: nrpe, when: manage_nrpe }
+    - { role: gitolite, when: manage_gitolite }
+    - { role: php-fpm, when: manage_php-fpm }
+    - { role: slowcgi, when: manage_slowcgi }
+    - { role: httpd, when: manage_httpd }
+    - { role: repo, when: manage_repo }
+    - { role: repo, when: manage_repo }
+    - { role: dokuwiki, when: manage_dokuwiki }
+    - { role: owncloud, when: manage_owncloud }
+    - { role: squid, when: manage_squid }
+    - { role: smtpd, when: manage_smtpd }
+    - { role: dovecot, when: manage_dovecot }
+    - { role: spamd, when: manage_spamd }
+    - { role: zabbix-agent, when: manage_zabbix-agent }
+    - { role: zabbix-server, when: manage_zabbix-server }
+    - { role: mariadb, when: manage_mariadb }
+

@@ -1,0 +1,94 @@
+---
+  #######################################
+  # OWNCLOUD
+  #######################################
+- name: configure owncloud
+
+  tasks:
+  - name: owncloud - install
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+      - owncloud-{{ owncloud_version }}
+      - owncloudclient-{{ owncloud_client_version }}
+
+  - name: owncloud - make chrooted php directory
+    file:
+      path: /var/www/etc/php-5.6
+      state: directory
+
+  - name: owncloud - copy php extensions to chrooted php directory
+    shell: cp /etc/php-5.6.sample/* /var/www/etc/php-5.6/
+
+  - name: owncloud - copy php.ini to chrooted directory
+    copy:
+      src: /etc/php-5.6.ini
+      dest: /var/www/etc/php-5.6.ini
+      remote_src: yes
+
+  - name: owncloud - configure httpd vhost
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        server {{ owncloud_dns_name }} {
+           alias owncloud{{ node_number }}.wurstbot.com
+           root "/owncloud"
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+           directory index "index.php"
+           connection max request body {{ owncloud_max_upload }}
+            location "/db_structure.xml" { block }
+            location "/.ht*"             { block }
+            location "/README"           { block }
+            location "/data*"            { block }
+            location "/config*"          { block }
+            location "*.php*" {
+                    fastcgi socket ":{{ php_port }}"
+            }
+        }
+      create: false
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost"
+    register: owncloud_web_config_results
+
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias {{ owncloud_dns_name }}"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on {{ ext_if }} tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - owncloud vhost tls"
+  #   when: use_tls==True
+
+  # TO BE FIXED
+  # - name: owncloud - configure dns name
+  #   lineinfile:
+  #     dest: /var/www/owncloud/config/config.php
+  #     insertbefore: ^),
+  #     line: 1 => '{{ owncloud_dns_name }}',
+  #     create: false
+  #   register: owncloud_config_results
+
+  - name: owncloud - check httpd config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+    when: owncloud_web_config_results|changed
+
+  - name: owncloud - handle httpd failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: owncloud - reload httpd when config changed
+    service: name=httpd state=reloaded
+    when: owncloud_web_config_results|changed and httpd_result is succeeded

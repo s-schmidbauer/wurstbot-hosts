@@ -1,0 +1,96 @@
+---
+  #######################################
+  # SQUID
+  #######################################
+- name: configure squid
+
+  tasks:
+  - name: squid - install
+    openbsd_pkg: name=squid state=present
+
+  - name: squid - start
+    service: name=squid state=started
+
+  - name: squid - enable
+    shell: rcctl enable squid
+
+  - name: squid - create log dir
+    file:
+      path: /var/squid/logs
+      owner: _squid
+      group: _squid
+      state: directory
+
+  - name: squid - create cache log
+    file:
+      path: /var/squid/logs/cache.log
+      owner: _squid
+      group: _squid
+      state: touch
+    register: squid_cache_log_results
+
+  - name: squid - create access log
+    file:
+      path: /var/squid/logs/access.log
+      owner: _squid
+      group: _squid
+      state: touch
+    register: squid_access_log_results
+
+  - name: squid - delete existing config
+    file:
+      path: /etc/squid/squid.conf
+      state: absent
+
+  - name: squid - config service
+    blockinfile:
+      dest: /etc/squid/squid.conf
+      block: |
+          client_db on
+          httpd_suppress_version_string on
+          ignore_unknown_nameservers on
+          retry_on_error on
+          access_log /var/squid/logs/access.log
+          cache_log /var/squid/logs/cache.log
+          acl home src 31.201.195.130
+          acl work src 84.207.225.37
+          acl SSL_ports port 443
+          acl Safe_ports port 80          # http
+          acl Safe_ports port 443         # https
+          acl Safe_ports port 1025-65535  # unregistered ports
+          acl CONNECT method CONNECT
+          http_access deny !Safe_ports
+          http_access deny CONNECT !SSL_ports
+          http_access allow localhost manager
+          http_access deny manager
+          http_access allow localhost
+          http_access allow home
+          http_access allow work
+          http_access deny all
+          http_port 3128
+          coredump_dir /var/squid/cache
+          cache_mem {{ squid_cache_mem }} MB
+          minimum_object_size 10 KB
+          maximum_object_size 8 MB
+      state: present
+      create: true
+      backup: yes
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - squid config"
+    when: squid_cache_log_results is succeeded and squid_access_log_results is succeeded
+    register: squid_config_results
+
+  - name: squid - check config
+    command: squid -k parse
+    register: squid_result
+    ignore_errors: yes
+
+  - name: squid - handle failure
+    action: fail msg="squid.conf check failed."
+    when: squid_result|failed
+
+  - name: squid - restart
+    service: name=squid state=restarted
+    when: squid_result is succeeded and squid_config_results|changed
+
+  - name: squid - enable
+    shell: rcctl enable squid

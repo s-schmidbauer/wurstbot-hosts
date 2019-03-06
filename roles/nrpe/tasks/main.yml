@@ -1,0 +1,48 @@
+---
+  #######################################
+  # NRPE
+  #######################################
+- name: configure nrpe
+
+  tasks:
+  - name: nrpe - install
+    openbsd_pkg: name=nrpe-{{ nrpe_version }} state=present
+
+  - name: nrpe - start
+    service: name=nrpe state=started
+
+  - name: nrpe - enable
+    shell: rcctl enable nrpe
+
+  - name: nrpe - concatenate commands
+    set_fact:
+      nrpe_commands_list: "{{ nrpe_commands | join('\n') }}"
+
+  - name: nrpe - config service
+    blockinfile:
+      dest: /etc/nrpe.cfg
+      block: |
+        log_facility=daemon
+        server_port={{ nrpe_port }}
+        allowed_hosts={{ nagios_servers| join(', ') }}
+        debug=0
+        connection_timeout=300
+        allow_weak_random_seed=0
+        {{ nrpe_commands_list }}
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - nrpe config"
+      backup: yes
+      state: present
+    register: nrpe_config_results
+
+  # - name: nrpe - extra config - commands
+  #   blockinfile:
+  #     dest: /etc/nrpe.cfg
+  #     block: |
+  #
+  #     backup: yes
+  #     state: present
+  #   register: nrpe_config_results
+
+  - name: nrpe - restart
+    service: name=nrpe state=restarted
+    when: nrpe_config_results|changed

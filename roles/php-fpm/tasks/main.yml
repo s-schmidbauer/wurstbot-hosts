@@ -1,0 +1,70 @@
+---
+  #######################################
+  # PHP-FPM
+  #######################################
+- name: configure php-fpm
+
+  tasks:
+  - name: php-fpm - install php and modules
+    openbsd_pkg: name={{ item }} state=present
+    with_items:
+        - php-{{ php_version }}
+        - php-curl-{{ php_version }}
+        - php-mysql-{{ php_version }}
+        - php-mysqli-{{ php_version }}
+        - php-zip-{{ php_version }}
+        - php-gd-{{ php_version }}
+        - php-mcrypt-{{ php_version }}
+        - php-bz2-{{ php_version }}
+        - php-intl-{{ php_version }}
+
+  - name: php-fpm - start
+    service: name=php56_fpm state=started
+
+  - name: php-fpm - enable
+    shell: rcctl enable php56_fpm
+
+  - name: php-fpm - symlink modules
+    file:
+      src: '/etc/php-5.6.sample/{{ item }}.ini'
+      dest: '/etc/php-5.6/{{ item }}.ini'
+      state: link
+    with_items:
+      - curl
+      - mysql
+      - zip
+      - gd
+      - mcrypt
+      - bz2
+      - intl
+    register: phpfpm_results
+
+  - name: php-fpm - configure php-fpm.conf
+    lineinfile:
+      dest: /etc/php-fpm.conf
+      line: listen = 127.0.0.1:{{ php_port }}
+      backup: yes
+      state: present
+    register: phpfpm_results
+
+  - name: php-fpm - configure php.ini
+    blockinfile:
+      dest: /etc/php-5.6.ini
+      block: |
+        extension=mysql.so
+        extension=mysqli.so
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - php.ini config"
+      backup: yes
+      state: present
+    register: phpfpm_results
+
+  - name: php-fpm - restart
+    service: name=php56_fpm state=restarted
+    when: phpfpm_results|changed
+
+  - name: php-fpm - create test file
+    lineinfile:
+      dest: /var/www/index.php
+      line: <?php phpinfo(); ?>
+      state: present
+    create: true

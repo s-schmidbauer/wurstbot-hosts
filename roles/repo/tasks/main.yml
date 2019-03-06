@@ -1,0 +1,115 @@
+---
+  #######################################
+  # REPO
+  #######################################
+- name: configure repos
+
+  tasks:
+  - name: repo - create repo dirs
+    file:
+      path: "{{ repo_dir }}/{{ item }}"
+      owner: root
+      group: daemon
+      state: directory
+      recurse: yes
+    with_items:
+      - "{{ os_version }}/amd64"
+      - "{{ os_version }}/packages/amd64"
+      - snapshots/amd64
+    register: repo_create_results
+
+    # rsync -av -f"+ */" -f"- *"
+
+  - name: repo - sync repo folders
+    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} .
+    with_items:
+      - "Changelogs"
+      - "doc"
+      - "LibreSSL"
+      - "OpenBGPD"
+      - "OpenNTPD"
+      - "OpenSSH"
+      - "patches"
+      - "songs"
+      - "syspatch"
+      - "tools"
+      # - "{{ os_version }}/packages/amd64/" # packages is too big
+
+  - name: repo - sync repo sub folders
+    shell: cd {{ repo_dir }} ; rsync -av -r --partial --stats rsync://{{ repo_src }}/{{ item }} {{ item }}
+    with_items:
+      - "snapshots/amd64/"
+      - "{{ os_version }}/ANNOUNCEMENT"
+      - "{{ os_version }}/SHA256"
+      - "{{ os_version }}/SHA256.sig"
+      - "{{ os_version }}/ports.tar.gz"
+      - "{{ os_version }}/src.tar.gz"
+      - "{{ os_version }}/sys.tar.gz"
+      - "{{ os_version }}/xenocara.tar.gz"
+      - "{{ os_version }}/amd64/"
+      # - "{{ os_version }}/packages/amd64/" # packages is too big
+
+  - name: repo - configure httpd
+    blockinfile:
+      dest: /etc/httpd.conf
+      block: |
+        types {
+                include "/usr/share/misc/mime.types"
+                text/plain sig
+        }
+        default type text/plain
+        server {{ repo_dns_name }} {
+           alias repo{{ node_number }}.wurstbot.com
+           root "/repo"
+           listen on lo tls port 443
+           listen on {{ ext_if }} tls port 443
+           tls certificate "/etc/ssl/{{ dns_name }}.crt"
+           tls key "/etc/ssl/private/{{ dns_name }}.key"
+           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+           # hsts
+           directory auto index
+           location "/cgi-bin/man.cgi*" {
+              block return 301 "https://man.openbsd.org$REQUEST_URI"
+           }
+           location "/cgi-bin/cvsweb*" {
+              block return 301 "https://cvsweb.openbsd.org$REQUEST_URI"
+           }
+        }
+      create: true
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost"
+
+  # - name: httpd - configure httpd tls
+  #   blockinfile:
+  #     dest: /etc/httpd.conf
+  #     insertafter: "alias repo"
+  #     block: |
+  #          listen on lo tls port 443
+  #          listen on {{ ext_if }} tls port 443
+  #          tls certificate "/etc/ssl/{{ dns_name }}.crt"
+  #          tls key "/etc/ssl/private/{{ dns_name }}.key"
+  #          tls ocsp "/etc/ssl/{{ dns_name }}.der"
+  #          # block return 301 "https://$HTTP_HOST$REQUEST_URI"
+  #          # hsts
+  #     create: true
+  #     marker: "# {mark} ANSIBLE MANAGED BLOCK - repo vhost tls"
+  #   when: use_tls==True
+
+  - name: httpd - check config
+    command: /usr/sbin/httpd -n
+    register: httpd_result
+    ignore_errors: yes
+
+  - name: httpd - handle failure
+    action: fail msg="httpd.conf check failed."
+    when: httpd_result|failed
+
+  - name: httpd - started
+    service: name=slowcgi state=started
+
+  - name: httpd - enable
+    shell: rcctl enable httpd
+
+  - name: httpd - reload httpd
+    service: name=httpd state=reloaded
+    when: httpd_result is succeeded

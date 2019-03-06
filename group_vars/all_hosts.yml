@@ -1,6 +1,11 @@
 #python-2.7.14p1 for OpenBSD 6.3
 #python-2.7.14 for OpenBSD 6.2
 
+# ansible
+user: admin
+become: true
+become_method: doas
+
 # BASE
 install_url: https://ftp.fau.de/pub/OpenBSD
 node_number: 0

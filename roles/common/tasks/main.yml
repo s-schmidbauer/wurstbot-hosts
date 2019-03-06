@@ -1,0 +1,226 @@
+---
+  ######################################
+  # BASIC SETUP
+  ######################################
+- name: basic system setup
+
+  tasks:
+  - name: configure hosts file
+    blockinfile:
+      dest: /etc/hosts
+      block: |
+          127.0.0.1         localhost
+          ::1               localhost
+          46.36.36.48       node2   node2.wurstbot.com
+          80.240.28.59      node3   node3.wurstbot.com
+          45.32.152.181     node4   node4.wurstbot.com
+          45.32.185.50      node5   node5.wurstbot.com
+          209.250.244.111   node6   node6.wurstbot.com
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - hosts config"
+      state: present
+      backup: yes
+      create: True
+    tags: sys-config
+
+  - name: create adduser config
+    blockinfile:
+      dest: /etc/adduser.conf
+      block: |
+          verbose = 1
+          defaultpasswd = "yes"
+          encryptionmethod = "auto"
+          dotdir = "/etc/skel"
+          send_message = "no"
+          message_file = "/etc/adduser.message"
+          config = "/etc/adduser.conf"
+          logfile = "/var/log/adduser"
+          home = "/home"
+          path = ('/bin', '/usr/bin', '/usr/local/bin')
+          shellpref = ('csh', 'sh', 'bash', 'tcsh', 'ksh', 'nologin')
+          defaultshell = "ksh"
+          defaultgroup = "USER"
+          uid_start = 1000
+          uid_end = 2147483647
+          defaultclass = "default"
+          login_classes = ('default', 'daemon', 'staff', 'authpf', 'pbuild', 'bgpd', 'unbound', 'dovecot')
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - adduser config"
+      state: present
+      backup: yes
+      create: True
+    tags: sys-config
+
+  - name: create admin user with password
+    shell: pass=$(echo {{ admin_pass }} | encrypt) ; adduser -batch {{ admin_user }} wheel 'admin' $pass
+    ignore_errors: true
+    no_log: true
+    tags: sys-config
+
+  - name: set admin user password
+    shell: pass=$(echo {{ admin_pass}} | encrypt) ; usermod -p $pass {{ admin_user }}
+    no_log: true
+    tags: sys-config
+
+  - name: set install url
+    lineinfile:
+      dest: /etc/installurl
+      backup: yes
+      line: "{{ install_url }}"
+      state: present
+      create: True
+    tags: sys-config
+
+  - name: set default profile
+    blockinfile:
+      dest: /etc/profile
+      backup: yes
+      block: |
+        HISTFILE=$HOME/.history
+        HISTSIZE=500
+        PATH=$PATH:/usr/local/bin:/usr/local/sbin
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - profile config"
+      state: present
+      create: True
+    tags: sys-config
+
+  - name: forward root mails to admin
+    blockinfile:
+      dest: /etc/mail/aliases
+      backup: yes
+      block: |
+        root: {{ admin_email }}
+        _nagios: {{ admin_email }}
+        nagios: {{ admin_email }}
+        _zabbix: {{ admin_email }}
+        zabbix: {{ admin_email }}
+      state: present
+      create: True
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - aliases config"
+    register: admin_email_result
+    tags: sys-config
+
+  - name: activate forward root mails change
+    shell: newaliases
+    when: admin_email_result|changed
+    tags: sys-config
+
+  - name: cron - system patches
+    cron:
+      name: "install system patches"
+      special_time: weekly
+      job: "syspatch"
+    tags: sys-config
+
+  - name: cron - package updates
+    cron:
+      name: "install package updates"
+      special_time: weekly
+      job: "pkg_add -u"
+    tags: sys-config
+
+  - name: cron - refresh certs with acme-client
+    cron:
+      name: "refresh certs with acme-client"
+      special_time: weekly
+      job: "acme-client {{ dns_name }} && rcctl reload httpd"
+    tags: sys-config
+
+  - name: cron - refresh ocsp with ocspcheck
+    cron:
+      name: "refresh ocsp with ocspcheck"
+      special_time: daily
+      job: "ocspcheck -vN -o /etc/ssl/{{ dns_name }}.der /etc/ssl/{{ dns_name }}.fullchain.pem"
+    tags: sys-config
+
+  - name: cron - create zabbix agentd pid files and restart zabbix agent at reboot
+    cron:
+      name: "create zabbix agent pid files"
+      special_time: reboot
+      job: "touch /var/run/zabbix_agentd.pid ; chown _zabbix:_zabbix /var/run/zabbix_agentd.pid ; rcctl restart zabbix_agentd"
+    tags: sys-config
+
+  - name: cron - create zabbix server pid files and restart zabbix server at reboot
+    cron:
+      name: "create zabbix server pid files"
+      special_time: reboot
+      job: "touch /var/run/zabbix_server.pid ; chown _zabbix:_zabbix /var/run/zabbix_server.pid ; rcctl restart zabbix_server"
+    tags: sys-config
+
+  - name: cron - create zabbix proxy pid files and restart zabbix proxy at reboot
+    cron:
+      name: "create zabbix proxy pid files"
+      special_time: reboot
+      job: "touch /var/run/zabbix_proxy.pid ; chown _zabbix:_zabbix /var/run/zabbix_proxy.pid ; rcctl restart zabbix_proxy"
+    tags: sys-config
+
+  #######################################
+  # UPDATE SYSTEM AND PACKAGES
+  #######################################
+- name: install system updates
+
+  tasks:
+    # - name: list available system updates
+    #   shell: syspatch -c
+
+    - name: install system updates
+      shell: syspatch
+      register: system_update_results
+      when: update_mode==True
+      tags: sys-config
+
+    - name: install package updates
+      shell: pkg_add -u
+      register: package_update_results
+      when: update_mode==True
+      tags: sys-config
+
+    - name: install extra packages
+      openbsd_pkg: name={{ item }} state=present
+      with_items: "{{ extra_packages }}"
+      register: extra_packages_result
+      tags: sys-config
+
+  #######################################
+  # SYSCTL
+  #######################################
+- name: configure sysctl
+  hosts: all_hosts
+
+  tasks:
+  - name: sysctl - configure kernel options
+    blockinfile:
+      dest: /etc/sysctl.conf
+      block: |
+        kern.shminfo.shmmax=134217728         # max size of shared memory segment (bytes)
+        kern.shminfo.shmall=524288            # total amount of sharedmemory available (pages)
+        kern.shminfo.shmmni=240               # max number of sharedmemory segments system-wide
+        # for zabbix agent, double semaphore count - fixes cannot open log: cannot create semaphore set
+        kern.seminfo.semmns=360               # max number ofsemaphores system-wide
+        # IPv6
+        net.inet.ip.forwarding=1
+        net.inet6.ip6.forwarding=1
+        net.inet6.ip6.redirect=1
+        # VPN
+        net.inet.esp.enable=1
+        net.inet.ah.enable=0
+        net.inet.ipcomp.enable=1
+        # Reboot automatically after kernel panic
+        ddb.panic=0
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - sysctl config"
+      create: true
+      backup: yes
+    tags: sys-config
+
+  #######################################
+  # DOAS
+  #######################################
+- name: configure doas
+
+  tasks:
+  - name: doas - configure options
+    lineinfile:
+      dest: /etc/doas.conf
+      line: permit nopass setenv { -ENV PS1=$DOAS_PS1 SSH_AUTH_SOCK } :wheel
+      backup: yes
+      state: present
+      create: true
+    tags: sys-config

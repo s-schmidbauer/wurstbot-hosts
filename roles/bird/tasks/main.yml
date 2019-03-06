@@ -1,0 +1,85 @@
+---
+  #######################################
+  # BIRD / BGP
+  #######################################
+- name: configure bgp / bird
+
+  tasks:
+  - name: bird - check if interface exists
+    shell: ifconfig {{ bgp_dev }}
+    register: bgp_interface_exists
+    ignore_errors: true
+
+  - name: bird - create interface
+    shell: ifconfig {{ bgp_dev }} create
+    when: bgp_interface_exists|failed
+
+  - name: bird - configure ha ip
+    blockinfile:
+      dest: /etc/hostname.{{ bgp_dev }}
+      block: |
+        inet {{ bgp_ha_ip }}/{{ bgp_ha_ip_mask }}
+        up
+      create: true
+      backup: yes
+    register: bird_ip_config_results
+
+  - name: bird - restart network if ip config changed
+    shell: sh /etc/netstart
+    when: bird_ip_config_results|changed
+
+  - name: bird - install
+    openbsd_pkg: name=bird state=present
+    register: bird_install_results
+
+  - name: bird - delete existing config
+    file:
+      path: /etc/bird.conf
+      state: absent
+    when: bird_install_results|changed
+
+  - name: bird - configure
+    blockinfile:
+      dest: /etc/bird.conf
+      block: |
+        log "/var/log/bird" all;
+        router id {{ node_ip }};
+        protocol device
+        {
+            scan time 5;
+        }
+        protocol direct
+        {
+            interface "{{ bgp_dev }}";
+        }
+        protocol bgp vultr
+        {
+            export filter {
+                bgp_path.prepend({{ bgp_as }});
+                accept;
+            };
+            local as {{ bgp_as }};
+            source address {{ node_ip }};
+            import none;
+            export all;
+            graceful restart on;
+            next hop self;
+            multihop 2;
+            neighbor {{ bgp_neigh }} as {{ bgp_neigh_as }};
+            password "{{ bgp_pass }}";
+        }
+      marker: "# {mark} ANSIBLE MANAGED BLOCK - bird config"
+      create: true
+      backup: yes
+      state: present
+    register: bird_config_results
+
+  - name: bird - reload bird
+    service: name=bird state=reloaded
+    when: bird_config_results|changed
+
+  - name: bird - start
+    service: name=bird state=started
+
+  - name: bird - enable bird
+    shell: rcctl enable bird

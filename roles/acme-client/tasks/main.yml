@@ -2,9 +2,7 @@
   #######################################
   # ACME
   #######################################
-- name: configure acme
 
-  tasks:
   - name: acme - configure acme
     blockinfile:
       dest: /etc/acme-client.conf

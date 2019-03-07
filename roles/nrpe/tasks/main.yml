@@ -2,9 +2,7 @@
   #######################################
   # NRPE
   #######################################
-- name: configure nrpe
 
-  tasks:
   - name: nrpe - install
     openbsd_pkg: name=nrpe-{{ nrpe_version }} state=present
 

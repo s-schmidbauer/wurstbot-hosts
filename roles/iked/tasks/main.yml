@@ -2,9 +2,7 @@
   #######################################
   # IKED
   #######################################
-- name: configure iked
 
-  tasks:
   - name: iked - configure iked tunnels
     blockinfile:
       dest: /etc/iked.conf

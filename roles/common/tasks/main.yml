@@ -2,9 +2,7 @@
   ######################################
   # BASIC SETUP
   ######################################
-- name: basic system setup
 
-  tasks:
   - name: configure hosts file
     blockinfile:
       dest: /etc/hosts
@@ -155,37 +153,29 @@
   #######################################
   # UPDATE SYSTEM AND PACKAGES
   #######################################
-- name: install system updates
 
-  tasks:
-    # - name: list available system updates
-    #   shell: syspatch -c
+  - name: install system updates
+    shell: syspatch
+    register: system_update_results
+    when: update_mode==True
+    tags: sys-config
 
-    - name: install system updates
-      shell: syspatch
-      register: system_update_results
-      when: update_mode==True
-      tags: sys-config
+  - name: install package updates
+    shell: pkg_add -u
+    register: package_update_results
+    when: update_mode==True
+    tags: sys-config
 
-    - name: install package updates
-      shell: pkg_add -u
-      register: package_update_results
-      when: update_mode==True
-      tags: sys-config
-
-    - name: install extra packages
-      openbsd_pkg: name={{ item }} state=present
-      with_items: "{{ extra_packages }}"
-      register: extra_packages_result
-      tags: sys-config
+  - name: install extra packages
+    openbsd_pkg: name={{ item }} state=present
+    with_items: "{{ extra_packages }}"
+    register: extra_packages_result
+    tags: sys-config
 
   #######################################
   # SYSCTL
   #######################################
-- name: configure sysctl
-  hosts: all_hosts
 
-  tasks:
   - name: sysctl - configure kernel options
     blockinfile:
       dest: /etc/sysctl.conf
@@ -213,9 +203,7 @@
   #######################################
   # DOAS
   #######################################
-- name: configure doas
 
-  tasks:
   - name: doas - configure options
     lineinfile:
       dest: /etc/doas.conf

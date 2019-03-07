@@ -2,9 +2,7 @@
   #######################################
   # PHP-FPM
   #######################################
-- name: configure php-fpm
 
-  tasks:
   - name: php-fpm - install php and modules
     openbsd_pkg: name={{ item }} state=present
     with_items:

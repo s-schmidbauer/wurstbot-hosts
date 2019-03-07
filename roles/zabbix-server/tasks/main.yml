@@ -2,9 +2,7 @@
   #######################################
   # ZABBIX SERVER
   #######################################
-- name: configure zabbix server
 
-  tasks:
   - name: zabbix server - install
     openbsd_pkg: name={{ item }} state=present
     with_items:

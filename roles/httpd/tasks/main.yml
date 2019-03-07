@@ -2,9 +2,7 @@
   #######################################
   # HTTPD
   #######################################
-- name: configure httpd
 
-  tasks:
   - name: httpd - git checkout www site
     git:
       dest: /var/www/{{ www_dns_name }}

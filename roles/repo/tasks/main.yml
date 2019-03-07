@@ -2,9 +2,7 @@
   #######################################
   # REPO
   #######################################
-- name: configure repos
 
-  tasks:
   - name: repo - create repo dirs
     file:
       path: "{{ repo_dir }}/{{ item }}"

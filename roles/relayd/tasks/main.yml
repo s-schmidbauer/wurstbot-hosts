@@ -2,9 +2,7 @@
   #######################################
   # RELAYD
   #######################################
-- name: configure relayd
 
-  tasks:
   - name: relayd - configure
     blockinfile:
       dest: /etc/relayd.conf

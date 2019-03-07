@@ -2,9 +2,7 @@
   #######################################
   # ZABBIX AGENT
   #######################################
-- name: configure zabbix agent
 
-  tasks:
   - name: zabbix agent - install
     openbsd_pkg: name={{ item }} state=present
     with_items:

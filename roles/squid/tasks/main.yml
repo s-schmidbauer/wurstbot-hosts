@@ -2,9 +2,7 @@
   #######################################
   # SQUID
   #######################################
-- name: configure squid
 
-  tasks:
   - name: squid - install
     openbsd_pkg: name=squid state=present
 

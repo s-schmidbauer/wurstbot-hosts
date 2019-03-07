@@ -2,9 +2,7 @@
   #######################################
   # MariaDB
   #######################################
-- name: configure mysql
 
-  tasks:
   - name: mysql - install
     openbsd_pkg: name={{ item }} state=present
     with_items:

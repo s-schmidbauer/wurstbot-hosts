@@ -2,9 +2,7 @@
   #######################################
   # BIRD / BGP
   #######################################
-- name: configure bgp / bird
 
-  tasks:
   - name: bird - check if interface exists
     shell: ifconfig {{ bgp_dev }}
     register: bgp_interface_exists

@@ -2,9 +2,7 @@
   #######################################
   # SSH
   #######################################
-- name: configure ssh
 
-  tasks:
   - name: ssh - start
     service: name=sshd state=started
 

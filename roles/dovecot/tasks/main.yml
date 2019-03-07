@@ -2,9 +2,7 @@
   #######################################
   # DOVECOT
   #######################################
-- name: configure dovecot
 
-  tasks:
   - name: dovecot - install
     openbsd_pkg: name=dovecot state=present
 

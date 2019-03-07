@@ -2,9 +2,7 @@
   #######################################
   # SPAMD
   #######################################
-- name: configure spamd
 
-  tasks:
   - name: spamd - enable
     shell: rcctl enable spamd
 

@@ -2,9 +2,7 @@
   #######################################
   # SMTPD
   #######################################
-- name: configure smtpd
 
-  tasks:
   # - name: smtpd - config aliases
   #   blockinfile:
   #     dest: /etc/mail/domains

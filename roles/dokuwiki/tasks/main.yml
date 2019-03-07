@@ -2,9 +2,7 @@
   #######################################
   # DOKUWIKI
   #######################################
-- name: configure dokuwiki
 
-  tasks:
   - name: dokuwiki - install
     openbsd_pkg: name=dokuwiki-{{ dokuwiki_version }} state=present
 

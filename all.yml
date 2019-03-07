@@ -16,7 +16,6 @@
     - { role: slowcgi, when: manage_slowcgi }
     - { role: httpd, when: manage_httpd }
     - { role: repo, when: manage_repo }
-    - { role: repo, when: manage_repo }
     - { role: dokuwiki, when: manage_dokuwiki }
     - { role: owncloud, when: manage_owncloud }
     - { role: squid, when: manage_squid }

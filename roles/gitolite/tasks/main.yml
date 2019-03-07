@@ -2,9 +2,7 @@
   #######################################
   # GITOLITE
   #######################################
-- name: configure gitolite
 
-  tasks:
   - name: gitolite - install git
     openbsd_pkg: name=git state=present
     tags:
@@ -80,4 +78,4 @@
     service: name=sshd state=reloaded
     when: gitolite_ssh_config_results|changed
     tags:
-	- git
+      - git

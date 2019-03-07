@@ -2,9 +2,7 @@
   #######################################
   # SLOWCGI
   #######################################
-- name: configure slowcgi
 
-  tasks:
   - name: slowcgi - started
     service: name=slowcgi state=started
 

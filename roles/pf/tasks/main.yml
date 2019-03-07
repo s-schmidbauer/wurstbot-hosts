@@ -2,9 +2,7 @@
   #######################################
   # PF
   #######################################
-- name: configure pf
 
-  tasks:
   - name: pf - configure packet filter
     blockinfile:
       dest: /etc/pf.conf

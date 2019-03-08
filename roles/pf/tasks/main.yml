@@ -66,13 +66,6 @@
       mode: 0600
     tags: pf-config
 
-  - name: pf - get abusers table
-    shell: pfctl -t abusers -T show
-    register: pf_table_abusers
-
-  - set_fact:
-      pf_table_abusers_{{ node_number }}: "{{ pf_table_abusers.stdout }}"
-
   - name: pf - check conf
     shell: pfctl -nf /etc/pf.conf
     register: pf_result

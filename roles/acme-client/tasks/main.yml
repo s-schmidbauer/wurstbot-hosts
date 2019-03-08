@@ -2,7 +2,6 @@
   #######################################
   # ACME
   #######################################
-
   - name: acme - configure acme
     blockinfile:
       dest: /etc/acme-client.conf

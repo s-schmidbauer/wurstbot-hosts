@@ -8,16 +8,16 @@ become_method: doas
 
 # roles management
 manage_common: true
-manage_pf: true
+manage_pf: false
 manage_sshd: true
-manage_acme-client: true
+manage_acme_client: true
 manage_nrpe: true
 manage_iked: false
 manage_bird: false
 manage_relayd: false
 manage_nagios: false
 manage_gitolite: false
-manage_php-fpm: false 
+manage_php_fpm: false 
 manage_slowcgi: false
 manage_httpd: false
 manage_repo: false
@@ -27,15 +27,15 @@ manage_squid: false
 manage_smtpd: false
 manage_dovecot: false
 manage_spamd: false
-manage_zabbix-agent: false
-manage_zabbix-server: false
+manage_zabbix_agent: false
+manage_zabbix_server: false
 manage_mariadb: false 
 
 # BASE
 install_url: https://ftp.fau.de/pub/OpenBSD
 node_number: 0
 node_ip: 0.0.0.0
-os_version: 6.3
+os_version: 6.4
 dns_domain: www.wurstbot.com
 
 admin_email: s.schmidbauer@gmail.com
@@ -135,7 +135,7 @@ all_hosts_ports:
   - 10051 # needed for not yet trusted defined clients
 
 #SSH
-ssh_port: 3200
+ssh_port: 22
 
 # GITOLITE
 git_user: git

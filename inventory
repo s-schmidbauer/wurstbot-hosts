@@ -1,3 +1,5 @@
+[node1]
+node1.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=22 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
 [node2]
 node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 [node3]
@@ -10,6 +12,7 @@ node5.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_p
 node6.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 
 [all_hosts]
+node1.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=22 ansible_user=root ansible_ssh_private_key=~/.ssh/id_ecdsa
 node2.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 node3.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible
 node4.wurstbot.com ansible_python_interpreter=/usr/local/bin/python2.7 ansible_port=3200 ansible_user=admin ansible_ssh_private_key=~/.ssh/id_ansible

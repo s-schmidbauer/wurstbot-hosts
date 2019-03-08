@@ -1,0 +1,42 @@
+#python-2.7.14p1 for OpenBSD 6.3
+#python-2.7.14 for OpenBSD 6.2
+
+# BASE
+install_url: https://ftp.fsn.hu/pub/OpenBSD
+node_number: 1
+dns_name: node{{ node_number }}.{{ dns_domain }}
+node_ip: 45.32.234.194
+# admin_email: s.schmidbauer@gmail.com
+# admin_user: admin
+admin_pass: supersecret
+
+# SYSTEM AND PACKAGE UPDATES
+update_mode: true
+
+# PF
+ext_if: vio0
+
+# ACME-client
+acme_aliases:
+  - zabbix.{{ dns_domain }}
+  - zabbix{{ node_number }}.{{ dns_domain }}
+  - nagios.{{ dns_domain }}
+  - nagios{{ node_number }}.{{ dns_domain }}
+
+# ZABBIX SERVER
+zabbix_db_pass: supersecret
+
+# SQUID
+squid_cache_mem: 512
+
+# SMTPD
+smtpd_pass: supersecret
+
+# NAGIOS
+nagios_server: true
+nagios_password: supersecret
+
+# MYSQL replication related
+mysql_root_pass: "supersecret"
+mysql_repl_pass: "supersecret"
+mysql_is_master: false

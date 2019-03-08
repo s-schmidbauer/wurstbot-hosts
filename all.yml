@@ -8,11 +8,11 @@
     - { role: relayd, when: manage_relayd }
     - { role: nrpe, when: manage_nrpe }
     - { role: nagios, when: manage_nagios }
-    - { role: sshd, when: manage_sshd _}
-    - { role: acme-client, when: manage_acme-client }
+    - { role: sshd, when: manage_sshd }
+    - { role: acme-client, when: manage_acme_client }
     - { role: nrpe, when: manage_nrpe }
     - { role: gitolite, when: manage_gitolite }
-    - { role: php-fpm, when: manage_php-fpm }
+    - { role: php-fpm, when: manage_php_fpm }
     - { role: slowcgi, when: manage_slowcgi }
     - { role: httpd, when: manage_httpd }
     - { role: repo, when: manage_repo }
@@ -22,7 +22,7 @@
     - { role: smtpd, when: manage_smtpd }
     - { role: dovecot, when: manage_dovecot }
     - { role: spamd, when: manage_spamd }
-    - { role: zabbix-agent, when: manage_zabbix-agent }
-    - { role: zabbix-server, when: manage_zabbix-server }
+    - { role: zabbix-agent, when: manage_zabbix_agent }
+    - { role: zabbix-server, when: manage_zabbix_server }
     - { role: mariadb, when: manage_mariadb }
 

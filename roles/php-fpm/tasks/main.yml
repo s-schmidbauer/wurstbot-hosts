@@ -58,11 +58,11 @@
 
   - name: php-fpm - restart
     service: name=php56_fpm state=restarted
-    when: phpfpm_results|changed
+    when: phpfpm_results is changed
 
   - name: php-fpm - create test file
     lineinfile:
-      dest: /var/www/index.php
+      dest: /var/www/htdocs/index.php
       line: <?php phpinfo(); ?>
       state: present
     create: true

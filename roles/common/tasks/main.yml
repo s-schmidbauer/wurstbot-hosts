@@ -98,7 +98,7 @@
 
   - name: activate forward root mails change
     shell: newaliases
-    when: admin_email_result|changed
+    when: admin_email_result is changed
     tags: sys-config
 
   - name: cron - system patches

@@ -18,7 +18,7 @@
   - name: mysql - install_db
     shell: mysql_install_db
     ignore_errors: true
-    when: mysql_install_results|changed
+    when: mysql_install_results is changed
 
   - name: mysql - configure .my.cnf listener
     lineinfile:
@@ -110,4 +110,4 @@
 
   - name: mysql - restart mysqld
     service: name=mysqld state=restarted
-    when: ( mysql_client_listener_results|changed ) or ( mysql_client_config_results|changed ) or ( mysql_repl_config_results|changed )
+    when: ( mysql_client_listener_results is changed ) or ( mysql_client_config_results is changed ) or ( mysql_repl_config_results is changed )

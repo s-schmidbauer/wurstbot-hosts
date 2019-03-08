@@ -60,7 +60,7 @@
 
   - name: zabbix - unpack source package
     shell: tar xfz /tmp/zabbix-{{ zabbix_version }}.tar.gz -C /tmp/
-    when: zabbix_install_mode == True and zabbix_create_db_results|changed
+    when: zabbix_install_mode == True and zabbix_create_db_results is changed
 
   - name: zabbix - import databases
     mysql_db:
@@ -73,7 +73,7 @@
       - schema
       - images
       - data
-    when: zabbix_install_mode == True and zabbix_create_db_results|changed
+    when: zabbix_install_mode == True and zabbix_create_db_results is changed
     ignore_errors: true
 
   - name: zabbix - config zabbix server
@@ -169,7 +169,7 @@
     command: /usr/sbin/httpd -n
     register: httpd_result
     ignore_errors: yes
-    when: zabbix_web_config_results|changed
+    when: zabbix_web_config_results is changed
 
   - name: zabbix - handle httpd failure
     action: fail msg="httpd.conf check failed."

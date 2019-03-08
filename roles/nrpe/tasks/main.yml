@@ -43,4 +43,4 @@
 
   - name: nrpe - restart
     service: name=nrpe state=restarted
-    when: nrpe_config_results|changed
+    when: nrpe_config_results is changed

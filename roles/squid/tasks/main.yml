@@ -88,7 +88,7 @@
 
   - name: squid - restart
     service: name=squid state=restarted
-    when: squid_result is succeeded and squid_config_results|changed
+    when: squid_result is succeeded and squid_config_results is changed
 
   - name: squid - enable
     shell: rcctl enable squid

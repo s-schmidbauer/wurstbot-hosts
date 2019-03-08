@@ -24,7 +24,7 @@
 
   - name: bird - restart network if ip config changed
     shell: sh /etc/netstart
-    when: bird_ip_config_results|changed
+    when: bird_ip_config_results is changed
 
   - name: bird - install
     openbsd_pkg: name=bird state=present
@@ -34,7 +34,7 @@
     file:
       path: /etc/bird.conf
       state: absent
-    when: bird_install_results|changed
+    when: bird_install_results is changed
 
   - name: bird - configure
     blockinfile:
@@ -74,7 +74,7 @@
 
   - name: bird - reload bird
     service: name=bird state=reloaded
-    when: bird_config_results|changed
+    when: bird_config_results is changed
 
   - name: bird - start
     service: name=bird state=started

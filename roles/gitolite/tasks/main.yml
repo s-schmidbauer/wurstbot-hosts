@@ -76,6 +76,6 @@
 
   - name: gitolite - reload sshd
     service: name=sshd state=reloaded
-    when: gitolite_ssh_config_results|changed
+    when: gitolite_ssh_config_results is changed
     tags:
       - git

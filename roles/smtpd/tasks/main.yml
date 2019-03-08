@@ -69,7 +69,7 @@
 
   - name: smtpd - restarted
     service: name=smtpd state=restarted
-    when: smtpd_config_results|changed
+    when: smtpd_config_results is changed
 
   - name: smtpd - start
     service: name=smtpd state=started

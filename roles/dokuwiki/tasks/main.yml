@@ -56,7 +56,7 @@
     command: /usr/sbin/httpd -n
     register: httpd_result
     ignore_errors: yes
-    when: dokuwiki_web_config_results|changed
+    when: dokuwiki_web_config_results is changed
 
   - name: dokuwiki - handle httpd failure
     action: fail msg="httpd.conf check failed."

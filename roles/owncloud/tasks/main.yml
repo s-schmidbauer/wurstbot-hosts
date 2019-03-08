@@ -81,7 +81,7 @@
     command: /usr/sbin/httpd -n
     register: httpd_result
     ignore_errors: yes
-    when: owncloud_web_config_results|changed
+    when: owncloud_web_config_results is changed
 
   - name: owncloud - handle httpd failure
     action: fail msg="httpd.conf check failed."
@@ -89,4 +89,4 @@
 
   - name: owncloud - reload httpd when config changed
     service: name=httpd state=reloaded
-    when: owncloud_web_config_results|changed and httpd_result is succeeded
+    when: owncloud_web_config_results is changed and httpd_result is succeeded

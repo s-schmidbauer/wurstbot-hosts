@@ -112,5 +112,5 @@
 
   - name: relayd - reload relayd
     service: name=relayd state=reloaded
-    when: relayd_config_results|changed and relayd_result is succeeded
+    when: relayd_config_results is changed and relayd_result is succeeded
 

@@ -10,6 +10,7 @@ become_method: doas
 manage_common: true
 manage_pf: false
 manage_sshd: true
+manage_httpd: true
 manage_acme_client: true
 manage_nrpe: true
 manage_iked: false
@@ -19,7 +20,6 @@ manage_nagios: false
 manage_gitolite: false
 manage_php_fpm: false 
 manage_slowcgi: false
-manage_httpd: false
 manage_repo: false
 manage_dokuwiki: false 
 manage_owncloud: false
@@ -36,7 +36,7 @@ install_url: https://ftp.fau.de/pub/OpenBSD
 node_number: 0
 node_ip: 0.0.0.0
 os_version: 6.4
-dns_domain: www.wurstbot.com
+dns_domain: wurstbot.com
 
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin

@@ -5,7 +5,7 @@
 install_url: https://ftp.fsn.hu/pub/OpenBSD
 node_number: 1
 dns_name: node{{ node_number }}.{{ dns_domain }}
-node_ip: 45.32.234.194
+node_ip: 95.179.191.220
 # admin_email: s.schmidbauer@gmail.com
 # admin_user: admin
 admin_pass: supersecret
@@ -17,11 +17,11 @@ update_mode: true
 ext_if: vio0
 
 # ACME-client
-acme_aliases:
-  - zabbix.{{ dns_domain }}
-  - zabbix{{ node_number }}.{{ dns_domain }}
-  - nagios.{{ dns_domain }}
-  - nagios{{ node_number }}.{{ dns_domain }}
+#acme_aliases:
+#  - zabbix.{{ dns_domain }}
+#  - zabbix{{ node_number }}.{{ dns_domain }}
+#  - nagios.{{ dns_domain }}
+#  - nagios{{ node_number }}.{{ dns_domain }}
 
 # ZABBIX SERVER
 zabbix_db_pass: supersecret

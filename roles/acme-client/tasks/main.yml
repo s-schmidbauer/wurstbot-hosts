@@ -7,7 +7,7 @@
       dest: /etc/acme-client.conf
       block: |
         domain "{{ dns_name }}" {
-          alternative names { {{ www_dns_name }} {{ acme_aliases | join(' ') }} }
+          #alternative names { {{ acme_aliases | join(' ') }} }
           domain key "/etc/ssl/private/{{ dns_name }}.key"
           domain certificate "/etc/ssl/{{ dns_name }}.crt"
           domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"
@@ -19,7 +19,7 @@
 
     #make sure the cert does not exist yet and a webserver is able to satisify the request
   - name: acme - configure cert and key
-    shell: /usr/sbin/acme-client -vD {{ dns_name }}
+    shell: /usr/sbin/acme-client -vAD {{ dns_name }}
     when: use_tls == true
     ignore_errors: true
 

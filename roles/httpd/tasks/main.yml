@@ -3,10 +3,10 @@
   # HTTPD
   #######################################
 
-  - name: httpd - git checkout www site
-    git:
-      dest: /var/www/{{ www_dns_name }}
-      repo: https://github.com/s-schmidbauer/{{ www_dns_name }}
+#  - name: httpd - git checkout www site
+#    git:
+#      dest: /var/www/{{ www_dns_name }}
+#      repo: https://github.com/s-schmidbauer/{{ www_dns_name }}.git
 
     # www host first (before the catch all)
   - name: httpd - configure www vhost
@@ -18,15 +18,15 @@
            root "/{{ www_dns_name }}"
            listen on lo port 80
            listen on {{ ext_if }} port 80
-           listen on lo tls port 443
-           listen on {{ ext_if }} tls port 443
-           tls certificate "/etc/ssl/{{ dns_name }}.crt"
-           tls key "/etc/ssl/private/{{ dns_name }}.key"
-           tls ocsp "/etc/ssl/{{ dns_name }}.der"
+           #listen on lo tls port 443
+           #listen on {{ ext_if }} tls port 443
+           #tls certificate "/etc/ssl/www.{{ dns_name }}.crt"
+           #tls key "/etc/ssl/private/www.{{ dns_name }}.key"
+           #tls ocsp "/etc/ssl/www.{{ dns_name }}.der"
            location "/.well-known/acme-challenge/*" {
                 no authenticate
                 root "/acme"
-                root strip 2
+                request strip 2
            }
            location "*.php*" {
                 fastcgi socket ":{{ php_port }}"
@@ -50,7 +50,7 @@
            location "/.well-known/acme-challenge/*" {
                 no authenticate
                 root "/acme"
-                root strip 2
+                request strip 2
            }
            location "*.php*" {
                 fastcgi socket ":{{ php_port }}"
@@ -84,7 +84,7 @@
 
   - name: httpd - create test file
     lineinfile:
-      dest: /var/www/index.html
+      dest: /var/www/htdocs/index.html
       line: <html><p>{{ dns_name }}</p></html>
       state: present
-    create: true
+      create: yes

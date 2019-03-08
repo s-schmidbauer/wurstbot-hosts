@@ -17,7 +17,7 @@ update_mode: true
 ext_if: vio0
 
 # ACME-client
-#acme_aliases:
+acme_aliases:
 #  - zabbix.{{ dns_domain }}
 #  - zabbix{{ node_number }}.{{ dns_domain }}
 #  - nagios.{{ dns_domain }}

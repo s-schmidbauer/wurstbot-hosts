@@ -46,7 +46,7 @@
         server *.{{ dns_domain }} {
            listen on {{ ext_if }} port 80
            listen on lo port 80
-           root "/"
+           root "/htdocs"
            location "/.well-known/acme-challenge/*" {
                 no authenticate
                 root "/acme"

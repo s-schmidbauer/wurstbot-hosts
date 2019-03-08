@@ -7,7 +7,6 @@
       dest: /etc/acme-client.conf
       block: |
         domain "{{ dns_name }}" {
-          #alternative names { {{ acme_aliases | join(' ') }} }
           domain key "/etc/ssl/private/{{ dns_name }}.key"
           domain certificate "/etc/ssl/{{ dns_name }}.crt"
           domain full chain certificate "/etc/ssl/{{ dns_name }}.fullchain.pem"

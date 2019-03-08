@@ -14,7 +14,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ www_dns_name }} {
-           alias www{{ node_number }}.wurstbot.com
+           alias www{{ node_number }}.{{ dns_domain }}
            root "/{{ www_dns_name }}"
            listen on lo port 80
            listen on {{ ext_if }} port 80
@@ -43,7 +43,7 @@
     blockinfile:
       dest: /etc/httpd.conf
       block: |
-        server *.wurstbot.com {
+        server *.{{ dns_domain }} {
            listen on {{ ext_if }} port 80
            listen on lo port 80
            root "/"

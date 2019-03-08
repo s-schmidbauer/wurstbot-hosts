@@ -146,7 +146,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ zabbix_dns_name }} {
-           alias zabbix{{ node_number }}.wurstbot.com
+           alias zabbix{{ node_number }}.{{ dns_domain }}
            root "/zabbix"
            listen on lo tls port 443
            listen on {{ ext_if }} tls port 443

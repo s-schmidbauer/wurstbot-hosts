@@ -11,7 +11,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ dokuwiki_dns_name }} {
-           alias wiki{{ node_number }}.wurstbot.com
+           alias wiki{{ node_number }}.{{ dns_domain }}
            root "/dokuwiki"
            listen on lo tls port 443
            listen on {{ ext_if }} tls port 443

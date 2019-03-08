@@ -49,7 +49,7 @@
     ignore_errors: true
 
   - name: acme - backup certs and keys
-    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.wurstbot.com-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.wurstbot.com.key node{{ node_number }}.wurstbot.com.*
+    shell: cd /etc/ssl ; tar cfz ~/node{{ node_number }}.{{ dns_domain }}-tls-$(date +%Y%m%d_%H%M%S).tgz private/node{{ node_number }}.{{ dns_domain }}.key node{{ node_number }}.{{ dns_domain }}.*
     register: acme_backup_results
     when: acme_renew_result is succeeded and use_tls==true
     ignore_errors: true

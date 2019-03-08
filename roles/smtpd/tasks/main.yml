@@ -17,7 +17,7 @@
     blockinfile:
       dest: /etc/mail/domains
       block: |
-          wurstbot.com
+          {{ dns_domain }}
       state: present
       create: true
       backup: yes
@@ -27,9 +27,9 @@
     blockinfile:
       dest: /etc/mail/virtuals
       block: |
-          zabbix@wurstbot.com     root
-          nagios@wurstbot.com     root
-          admin@wurstbot.com      root
+          zabbix@{{ dns_domain }}     root
+          nagios@{{ dns_domain }}     root
+          admin@{{ dns_domain }}      root
       state: present
       create: true
       backup: yes
@@ -57,7 +57,7 @@
           listen on all port 25 tls pki node{{node_number}} auth-optional <creds>
           listen on all port 587 tls-require pki node{{node_number}} auth-optional <creds>
           listen on all port 465 smtps pki node{{node_number}} auth-optional <creds>
-          # Accept external mail for domain "wurstbot.com"
+          # Accept external mail for domain "{{ dns_domain }}"
           accept from any for domain <domains> alias <aliases> deliver to mbox
           accept for local alias <aliases> deliver to mbox
           accept from local for any relay

@@ -108,7 +108,7 @@
         define host {
                 use openbsd-server
                 host_name       {{ item }}
-                address         {{ item }}.wurstbot.com
+                address         {{ item }}.{{ dns_domain }}
         }
       create: true
       backup: yes
@@ -474,7 +474,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ nagios_dns_name }} {
-           alias nagios{{ node_number }}.wurstbot.com
+           alias nagios{{ node_number }}.{{ dns_domain }}
            root "/nagios"
            listen on lo tls port 443
            listen on {{ ext_if }} tls port 443

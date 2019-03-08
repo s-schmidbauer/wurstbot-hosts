@@ -28,7 +28,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ owncloud_dns_name }} {
-           alias owncloud{{ node_number }}.wurstbot.com
+           alias owncloud{{ node_number }}.{{ dns_domain }}
            root "/owncloud"
            listen on lo tls port 443
            listen on {{ ext_if }} tls port 443

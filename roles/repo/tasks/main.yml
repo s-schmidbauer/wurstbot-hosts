@@ -57,7 +57,7 @@
         }
         default type text/plain
         server {{ repo_dns_name }} {
-           alias repo{{ node_number }}.wurstbot.com
+           alias repo{{ node_number }}.{[ dns_domain }}
            root "/repo"
            listen on lo tls port 443
            listen on {{ ext_if }} tls port 443

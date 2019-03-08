@@ -63,7 +63,7 @@
       dest: /etc/httpd.conf
       block: |
         server {{ mail_dns_name }} {
-           alias mail{{ node_number }}.wurstbot.com
+           alias mail{{ node_number }}.{{ dns_domain }}
            root "/"
            listen on lo tls port 443
            listen on {{ ext_if }} tls port 443

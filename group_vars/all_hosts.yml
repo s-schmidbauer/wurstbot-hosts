@@ -9,34 +9,34 @@ become_method: doas
 # roles management
 manage_common: true
 manage_pf: true
-manage_iked: true
-manage_bird: true
-manage_relayd: true
-manage_nrpe: true
-manage_nagios: true
 manage_sshd: true
 manage_acme-client: true
 manage_nrpe: true
-manage_gitolite: true
-manage_php-fpm: true
-manage_slowcgi: true
-manage_httpd: true
-manage_repo: true
-manage_dokuwiki: true
-manage_owncloud: true
-manage_squid: true
-manage_smtpd: true
-manage_dovecot: true
-manage_spamd: true
-manage_zabbix-agent: true
-manage_zabbix-server: true
-manage_mariadb: true
+manage_iked: false
+manage_bird: false
+manage_relayd: false
+manage_nagios: false
+manage_gitolite: false
+manage_php-fpm: false 
+manage_slowcgi: false
+manage_httpd: false
+manage_repo: false
+manage_dokuwiki: false 
+manage_owncloud: false
+manage_squid: false
+manage_smtpd: false
+manage_dovecot: false
+manage_spamd: false
+manage_zabbix-agent: false
+manage_zabbix-server: false
+manage_mariadb: false 
 
 # BASE
 install_url: https://ftp.fau.de/pub/OpenBSD
 node_number: 0
 node_ip: 0.0.0.0
 os_version: 6.3
+dns_domain: www.wurstbot.com
 
 admin_email: s.schmidbauer@gmail.com
 admin_user: admin
@@ -52,7 +52,7 @@ extra_packages:
 
 repo_src: mirrors.ircam.fr/pub/OpenBSD
 repo_dir: /var/www/repo/pub/OpenBSD
-repo_dns_name: repo.wurstbot.com
+repo_dns_name: repo.{{ dns_domain }}
 
 # SYSTEM AND PACKAGE UPDATES
 update_mode: false
@@ -175,13 +175,13 @@ nrpe_commands:
 
 # # ACME-client
 # acme_aliases:
-#   - zabbix.wurstbot.com
-#   - zabbix{{ node_number }}.wurstbot.com
-#   - nagios.wurstbot.com
-#   - nagios{{ node_number }}.wurstbot.com
+#   - zabbix.{{ dns_domain }}
+#   - zabbix{{ node_number }}.{{ dns_domain }}
+#   - nagios.{{ dns_domain }}
+#   - nagios{{ node_number }}.{{ dns_domain }}
 
 # HTTP
-www_dns_name: www.wurstbot.com
+www_dns_name: www.{{ dns_domain }}
 
 # ZABBIX SERVER
 #3.4.7 for OpenBSD 6.3
@@ -191,7 +191,7 @@ zabbix_db_user: zabbix
 zabbix_db_pass: supersecret
 zabbix_install_mode: false
 zabbix_active_server: false
-zabbix_dns_name: zabbix.wurstbot.com
+zabbix_dns_name: zabbix.{{ dns_domain }}
 zabbix_master: 45.32.185.50
 zabbix_servers:
   - node2
@@ -207,12 +207,12 @@ zabbix_clients:
 # DOKUWIKI
 #2017.02.19e for OpenBSD 6.3
 #2017.02.19b for OpenBSD 6.2
-dokuwiki_dns_name: wiki.wurstbot.com
+dokuwiki_dns_name: wiki.{{ dns_domain }}
 dokuwiki_version: 2017.02.19e
 
 # OWNCLOUD
 #10.0.7 for OpenBSD 6.3, 2.4.1 (client) for OpenBSD 6.3
-owncloud_dns_name: owncloud.wurstbot.com
+owncloud_dns_name: owncloud.{{ dns_domain }}
 owncloud_version: 10.0.7
 owncloud_client_version: 2.4.1
 owncloud_max_upload: 537919488
@@ -224,7 +224,7 @@ squid_cache_mem: 256
 smtpd_pass: supersecret
 
 # DOVECOT
-mail_dns_name: mail.wurstbot.com
+mail_dns_name: mail.{{ dns_domain }}
 
 # NAGIOS
 nagios_server: false
@@ -234,7 +234,7 @@ nagios_server: false
 # 4.3.1 nagios web on openbsd 6.2 / 6.3
 nagios_version: "4.3.1p0"
 nagios_web_version: "4.3.1"
-nagios_dns_name: nagios.wurstbot.com
+nagios_dns_name: nagios.{{ dns_domain }}
 nagios_password: supersecret
 
 nagios_guests:

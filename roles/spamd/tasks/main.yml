@@ -11,7 +11,7 @@
       dest: /etc/rc.conf.local
       block: |
           spamd_black=NO
-          spamd_flags="-4 -C /etc/ssl/{{ dns_name }}.crt -G25:4:864 -h mail.wurstbot.com -n \"Sendmail 8.11.4/8.11.1\" -v -w1"
+          spamd_flags="-4 -C /etc/ssl/{{ dns_name }}.crt -G25:4:864 -h mail.{{ dns_domain }} -n \"Sendmail 8.11.4/8.11.1\" -v -w1"
           spamlogd_flags="-I -i lo0"
       state: present
       create: true

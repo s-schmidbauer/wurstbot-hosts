@@ -19,14 +19,14 @@
           table <wurstbot_zabbix_hosts> { {{ zabbix_servers | join(' ') }} }
           http protocol "proxy" {
               tcp { nodelay, sack, socket buffer 65536, backlog 100 }
-              pass request quick header "Host" value "www.wurstbot.com" forward to <wurstbot_http_hosts>
-              pass request quick header "Host" value "nagios.wurstbot.com" forward to <wurstbot_nagios_hosts>
-              pass request quick header "Host" value "mysql.wurstbot.com" forward to <wurstbot_mysql_hosts>
-              pass request quick header "Host" value "squid.wurstbot.com" forward to <wurstbot_squid_hosts>
-              pass request quick header "Host" value "repo.wurstbot.com" forward to <wurstbot_repo_hosts>
-              pass request quick header "Host" value "wiki.wurstbot.com" forward to <wurstbot_wiki_hosts>
-              pass request quick header "Host" value "owncloud.wurstbot.com" forward to <wurstbot_owncloud_hosts>
-              pass request quick header "Host" value "zabbix.wurstbot.com" forward to <wurstbot_zabbix_hosts>
+              pass request quick header "Host" value "www.{{ dns_domain }}" forward to <wurstbot_http_hosts>
+              pass request quick header "Host" value "nagios.{{ dns_domain }}" forward to <wurstbot_nagios_hosts>
+              pass request quick header "Host" value "mysql.{{ dns_domain }}" forward to <wurstbot_mysql_hosts>
+              pass request quick header "Host" value "squid.{{ dns_domain }}" forward to <wurstbot_squid_hosts>
+              pass request quick header "Host" value "repo.{{ dns_domain }}" forward to <wurstbot_repo_hosts>
+              pass request quick header "Host" value "wiki.{{ dns_domain }}" forward to <wurstbot_wiki_hosts>
+              pass request quick header "Host" value "owncloud.{{ dns_domain }}" forward to <wurstbot_owncloud_hosts>
+              pass request quick header "Host" value "zabbix.{{ dns_domain }}" forward to <wurstbot_zabbix_hosts>
               match response header remove "X-Powered-By"
               match response header set "X-Frame-Options" value "deny"
               match response header set "X-Content-Type-Options" value "nosniff"
